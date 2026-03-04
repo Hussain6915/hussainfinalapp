@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#6b7cff" />
+  <title>Hussain's Finance Dashboard</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <link rel="icon" href="./icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <!-- Leaflet (Map) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Chart.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <link rel="stylesheet" href="./styles.css" />
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <div class="bgGlow"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <img class="brandLogo" src="./icon-192.png" alt="Logo" />
+      <div class="brandText">
+        <div class="brandTitle">Hussain's Finance Dashboard</div>
+        <div class="brandSub">Premium personal dashboard • synced across devices (when hosted)</div>
+      </div>
+    </div>
+
+    <nav class="tabs" id="tabs">
+      <button class="tabBtn active" data-tab="overall">Overall Finance</button>
+      <button class="tabBtn" data-tab="current">Current Finance</button>
+      <button class="tabBtn" data-tab="notes">Notes & Docs</button>
+      <button class="tabBtn" data-tab="water">Water</button>
+      <button class="tabBtn" data-tab="quotes">Daily Quran</button>
+      <button class="tabBtn" data-tab="focus">Focus</button>
+      <button class="tabBtn" data-tab="plans">Plans</button>
+    </nav>
+  </header>
+
+  <main class="shell">
+    <!-- ===== OVERALL ===== -->
+    <section class="view" id="view-overall">
+      <div class="grid3">
+        <div class="card">
+          <div class="cardHead">
+            <div class="chip">Total Current Balance</div>
+            <button class="btn ghost" data-action="editOverall" data-field="current">Edit</button>
+          </div>
+          <div class="big" id="overallCurrentValue">0</div>
+          <div class="hint">Your headline current balance</div>
+        </div>
+
+        <div class="card">
+          <div class="cardHead">
+            <div class="chip green">Total Savings</div>
+            <button class="btn ghost" data-action="editOverall" data-field="savings">Edit</button>
+          </div>
+          <div class="big greenText" id="overallSavingsValue">0</div>
+          <div class="hint">Always shown as green</div>
+        </div>
+
+        <div class="card">
+          <div class="cardHead">
+            <div class="chip">Total Monthly Balance</div>
+            <button class="btn ghost" data-action="editOverall" data-field="monthly">Edit</button>
+          </div>
+          <div class="big" id="overallMonthlyValue">0</div>
+          <div class="hint">Monthly budget headline</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="cardHead">
+          <div>
+            <div class="title">Overall Analytics</div>
+            <div class="hint">Charts update automatically</div>
+          </div>
+          <div class="row gap">
+            <button class="btn" data-action="forceSync">Sync Now</button>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="card inner">
+            <div class="titleSm">Current vs Savings</div>
+            <canvas id="chartOverall"></canvas>
+          </div>
+          <div class="card inner">
+            <div class="titleSm">Monthly vs Current vs Savings</div>
+            <canvas id="chartMonthly"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== CURRENT ===== -->
+    <section class="view hidden" id="view-current">
+      <div class="grid2">
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">Current Finance</div>
+              <div class="hint">Everything updates live</div>
+            </div>
+            <button class="btn ghost" data-action="quickResetDay">Reset Daily</button>
+          </div>
+
+          <div class="grid2 tight">
+            <div class="field">
+              <label>Balance</label>
+              <input id="curBalance" inputmode="numeric" placeholder="e.g. 50000" />
+            </div>
+            <div class="field">
+              <label>Savings <span class="pillGreen">green always</span></label>
+              <input id="curSavings" inputmode="numeric" placeholder="e.g. 12000" />
+            </div>
+          </div>
+
+          <div class="splitStat">
+            <div class="stat">
+              <div class="hint">Remain Balance</div>
+              <div class="big" id="remainBalance">0</div>
+            </div>
+            <div class="stat">
+              <div class="hint">Savings</div>
+              <div class="big greenText" id="savingsAlwaysGreen">0</div>
+            </div>
+          </div>
+
+          <div class="card inner">
+            <div class="cardHead">
+              <div>
+                <div class="titleSm">Balance for Personal</div>
+                <div class="hint">Personal = Remain − All expenses (pending+occurred)</div>
+              </div>
+              <div class="big" id="personalBalance">0</div>
+            </div>
+
+            <div class="grid2 tight">
+              <div class="field">
+                <label>Daily Balance (editable)</label>
+                <div class="row gap">
+                  <input id="dailyBase" inputmode="numeric" placeholder="10500" />
+                  <button class="btn" data-action="setDailyBase">Set</button>
+                </div>
+                <div class="hint">Tip: Use “spent today” below to auto-decrease</div>
+              </div>
+
+              <div class="field">
+                <label>How much you spent today?</label>
+                <div class="row gap">
+                  <input id="spentToday" inputmode="numeric" placeholder="e.g. 400" />
+                  <button class="btn" data-action="applySpentToday">Apply</button>
+                </div>
+                <div class="hint">Updates Daily Balance</div>
+              </div>
+            </div>
+
+            <div class="grid3 tight">
+              <div class="mini">
+                <div class="hint">Updated Daily</div>
+                <div class="num" id="dailyUpdated">0</div>
+              </div>
+              <div class="mini">
+                <div class="hint">Working days remaining</div>
+                <div class="num" id="workDaysRemain">—</div>
+              </div>
+              <div class="mini">
+                <div class="hint">Per day (auto)</div>
+                <div class="num" id="perDay">0</div>
+              </div>
+            </div>
+
+            <div class="grid2 tight">
+              <div class="mini">
+                <div class="hint">Weekly Balance</div>
+                <div class="num" id="weeklyBalance">0</div>
+              </div>
+              <div class="mini">
+                <div class="hint">Per week ( (Personal − Daily) / 4 )</div>
+                <div class="num" id="perWeek">0</div>
+              </div>
+            </div>
+
+            <div class="card inner">
+              <div class="titleSm">Week plan (editable)</div>
+              <div class="weekGrid">
+                <div class="field"><label>Week 1</label><input class="weekInput" data-week="1" inputmode="numeric" placeholder="Plan amount" /></div>
+                <div class="field"><label>Week 2</label><input class="weekInput" data-week="2" inputmode="numeric" placeholder="Plan amount" /></div>
+                <div class="field"><label>Week 3</label><input class="weekInput" data-week="3" inputmode="numeric" placeholder="Plan amount" /></div>
+                <div class="field"><label>Week 4</label><input class="weekInput" data-week="4" inputmode="numeric" placeholder="Plan amount" /></div>
+              </div>
+              <div class="hint">These don’t change totals; they’re planning per week.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">Expenses</div>
+              <div class="hint">All expenses subtract from Personal. If “Occurred ✅” then also subtract from Main top balance.</div>
+            </div>
+            <button class="btn ghost" data-action="clearExpenses">Clear All</button>
+          </div>
+
+          <div class="card inner">
+            <div class="titleSm">Add Expense</div>
+
+            <div class="grid3 tight">
+              <div class="field">
+                <label>Expense Name</label>
+                <input id="expName" placeholder="e.g. Petrol, Committee" />
+              </div>
+              <div class="field">
+                <label>Notes</label>
+                <input id="expNotes" placeholder="optional..." />
+              </div>
+              <div class="field">
+                <label>Amount</label>
+                <input id="expAmount" inputmode="numeric" placeholder="e.g. 1500" />
+              </div>
+            </div>
+
+            <div class="row end gap wrap">
+              <button class="btn" data-action="addExpense">Add Expense</button>
+            </div>
+
+            <div class="hr"></div>
+
+            <div class="titleSm">Add Services Expense</div>
+            <div class="grid3 tight">
+              <div class="field">
+                <label>Service</label>
+                <select id="svcName">
+                  <option>Netflix</option>
+                  <option>SIM</option>
+                  <option>GBT</option>
+                  <option>Spotify</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Notes</label>
+                <input id="svcNotes" placeholder="optional..." />
+              </div>
+              <div class="field">
+                <label>Amount</label>
+                <input id="svcAmount" inputmode="numeric" placeholder="e.g. 2000" />
+              </div>
+            </div>
+
+            <div class="row end gap wrap">
+              <button class="btn" data-action="addService">Add Service</button>
+            </div>
+          </div>
+
+          <div class="card inner">
+            <div class="titleSm">Expenses List</div>
+            <div class="tableWrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Occurred</th>
+                    <th>Type</th>
+                    <th>Name</th>
+                    <th>Notes</th>
+                    <th>Amount</th>
+                    <th class="right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="expensesTbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card inner">
+            <div class="titleSm">Live Analytics</div>
+            <div class="grid2">
+              <div class="card inner">
+                <div class="titleSm">Occurred vs Pending (amount)</div>
+                <canvas id="chartOccur"></canvas>
+              </div>
+              <div class="card inner">
+                <div class="titleSm">Services vs Expenses (amount)</div>
+                <canvas id="chartSvc"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== NOTES & DOCS ===== -->
+    <section class="view hidden" id="view-notes">
+      <div class="grid2">
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">Notes</div>
+              <div class="hint">Add • Search • Edit • Delete</div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Search</label>
+            <input id="noteSearch" placeholder="type to filter..." />
+          </div>
+
+          <div class="field">
+            <label>Title</label>
+            <input id="noteTitle" placeholder="e.g. March plan" />
+          </div>
+
+          <div class="field">
+            <label>Content</label>
+            <textarea id="noteBody" rows="7" placeholder="write your note..."></textarea>
+          </div>
+
+          <div class="row gap wrap">
+            <button class="btn" data-action="saveNote">Save Note</button>
+            <button class="btn ghost" data-action="clearNoteEditor">Clear</button>
+          </div>
+
+          <div class="hr"></div>
+          <div id="notesList" class="list"></div>
+        </div>
+
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">Docs</div>
+              <div class="hint">Attach images/PDFs • Preview • Download • Delete</div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Attach Files</label>
+            <input id="docInput" type="file" accept="image/*,application/pdf" multiple />
+            <div class="hint">Tip: PDFs/images preview on right.</div>
+          </div>
+
+          <div class="grid2">
+            <div>
+              <div class="titleSm">Attached</div>
+              <div id="docsList" class="list"></div>
+            </div>
+            <div>
+              <div class="titleSm">Preview</div>
+              <div id="docPreview" class="previewBox">Select a file to preview.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== WATER ===== -->
+    <section class="view hidden" id="view-water">
+      <div class="card">
+        <div class="cardHead">
+          <div>
+            <div class="title">Water Tracker</div>
+            <div class="hint">250ml per glass • Trophy when target reached</div>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="card inner">
+            <div class="field">
+              <label>Target (litres)</label>
+              <div class="row gap wrap">
+                <input id="waterTargetL" inputmode="decimal" placeholder="e.g. 3" />
+                <button class="btn" data-action="setWaterTarget">Save</button>
+                <button class="btn ghost" data-action="resetWaterToday">Reset Today</button>
+              </div>
+            </div>
+
+            <div class="progressWrap">
+              <div class="progressBar">
+                <div id="waterFill" class="progressFill"></div>
+              </div>
+              <div class="row between">
+                <div class="hint">Consumed: <span id="waterConsumedText">0 ml</span></div>
+                <div class="hint">Progress: <span id="waterProgressText">0%</span></div>
+              </div>
+
+              <div class="trophy" id="waterTrophy" hidden>🏆 Target completed — Shabash!</div>
+            </div>
+          </div>
+
+          <div class="card inner">
+            <div class="titleSm">Glasses</div>
+            <div id="glassGrid" class="glassGrid"></div>
+            <div class="hint">Tap a glass to set today’s count.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== QUOTES ===== -->
+    <section class="view hidden" id="view-quotes">
+      <div class="card">
+        <div class="cardHead">
+          <div>
+            <div class="title">Daily Quran</div>
+            <div class="hint">Live fetched • 4 items</div>
+          </div>
+          <div class="row gap wrap">
+            <button class="btn" data-action="refreshQuotes">Refresh</button>
+            <button class="btn ghost" data-action="forceSync">Sync Now</button>
+          </div>
+        </div>
+
+        <div id="quoteList" class="quoteList"></div>
+
+        <div class="hr"></div>
+
+        <div class="field">
+          <label>Reflection (saved)</label>
+          <textarea id="quoteReflection" rows="4" placeholder="what did you learn today?"></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FOCUS ===== -->
+    <section class="view hidden" id="view-focus">
+      <div class="card">
+        <div class="cardHead">
+          <div>
+            <div class="title">Focus Mode</div>
+            <div class="hint">Fullscreen + overlay • simple</div>
+          </div>
+          <div class="row gap wrap">
+            <button class="btn" data-action="toggleOverlay">Toggle Overlay</button>
+            <button class="btn ghost" data-action="goFullscreen">Fullscreen</button>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="card inner">
+            <div class="field">
+              <label>Minutes</label>
+              <input id="focusMinutes" inputmode="numeric" placeholder="e.g. 25" />
+            </div>
+            <div class="row gap wrap">
+              <button class="btn" data-action="startFocus">Start</button>
+              <button class="btn danger" data-action="stopFocus">Stop</button>
+            </div>
+          </div>
+
+          <div class="card inner">
+            <div class="titleSm">Countdown</div>
+            <div class="focusTime" id="focusCountdown">00:00</div>
+            <div class="hint">Stay on one task. You’ve got this.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Focus Overlay -->
+    <div id="focusOverlay" class="overlay hidden" hidden>
+      <div class="overlayCard">
+        <div class="overlayTitle">Focus Mode</div>
+        <div class="overlayTime" id="focusCountdownOverlay">00:00</div>
+        <div class="overlayHint">Stay on one task. You've got this.</div>
+        <div class="row gap center wrap">
+          <button class="btn danger" data-action="stopFocus">Stop</button>
+          <button class="btn ghost" data-action="hideOverlay">Hide</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PLANS ===== -->
+    <section class="view hidden" id="view-plans">
+      <div class="grid2">
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">Plans</div>
+              <div class="hint">Pick category • pin map • save</div>
+            </div>
+          </div>
+
+          <div class="grid2 tight">
+            <div class="field">
+              <label>Category</label>
+              <select id="planCategory">
+                <option>outing</option>
+                <option>movies</option>
+                <option>experiments</option>
+                <option>home based</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Name</label>
+              <input id="planName" placeholder="e.g. Sea View Walk" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Description</label>
+            <input id="planDesc" placeholder="quick details..." />
+          </div>
+
+          <div class="grid2 tight">
+            <div class="field">
+              <label>Date</label>
+              <input id="planDate" type="date" />
+            </div>
+            <div class="field">
+              <label>Time</label>
+              <input id="planTime" type="time" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Search Place</label>
+            <div class="row gap wrap">
+              <input id="mapSearch" placeholder="e.g. Dolmen Mall Karachi" />
+              <button class="btn" data-action="searchMap">Search</button>
+              <button class="btn ghost" data-action="clearPin">Clear Pin</button>
+            </div>
+            <div class="hint">Tip: click on map to drop a pin.</div>
+          </div>
+
+          <div class="row gap wrap">
+            <button class="btn" data-action="savePlan">Save Plan</button>
+            <button class="btn ghost" data-action="forceSync">Sync Now</button>
+          </div>
+
+          <div class="hr"></div>
+          <div class="titleSm">Saved Plans</div>
+          <div id="plansList" class="list"></div>
+        </div>
+
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">Map</div>
+              <div class="hint">Live OpenStreetMap</div>
+            </div>
+          </div>
+          <div id="plansMap" class="mapBox"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    Tip: Data saves to your server when hosted (sync across devices). LocalStorage is fallback.
+  </footer>
+</body>
+</html>
