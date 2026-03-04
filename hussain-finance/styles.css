@@ -634,4 +634,163 @@ html, body{
   max-width: 100%;
   overflow-x: hidden;
 }
+/* =========================================================
+   PATCH: Weekly Plan + Focus + Plans spacing + Futuristic FX
+   Paste at END of styles.css
+========================================================= */
+
+/* ---------- Futuristic subtle glow + hover polish ---------- */
+.card, .panel, .module, .glassCard, .listItem, .rowItem{
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
+  backdrop-filter: blur(12px);
+}
+
+.card:hover, .panel:hover, .module:hover, .glassCard:hover{
+  transform: translateY(-2px);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+  border-color: rgba(109, 94, 252, 0.28);
+}
+
+button, .btn, a.btn{
+  position: relative;
+  overflow: hidden;
+}
+
+button::after, .btn::after, a.btn::after{
+  content:"";
+  position:absolute;
+  inset:-2px;
+  background: radial-gradient(600px 120px at 20% 10%, rgba(109,94,252,.18), transparent 55%);
+  opacity:0;
+  transition: opacity .2s ease;
+  pointer-events:none;
+}
+
+button:hover::after, .btn:hover::after, a.btn:hover::after{
+  opacity:1;
+}
+
+/* Small “neon edge” on primary/active */
+.active, .isActive, .selectedTab, .btnPrimary, .primary{
+  box-shadow: 0 10px 28px rgba(109, 94, 252, 0.22) !important;
+}
+
+/* ---------- Weekly plan editable spacing ---------- */
+/* Works for typical weekly-plan container blocks */
+.weekPlan, .weeklyPlan, .weekGrid, .weekCards{
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px !important;
+  margin-top: 12px !important;
+}
+
+.weekPlan .weekCard, .weeklyPlan .weekCard,
+.weekGrid .weekCard, .weekCards .weekCard,
+.weekPlan .listItem, .weeklyPlan .listItem{
+  padding: 14px !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  background: rgba(255,255,255,.70) !important;
+}
+
+.weekPlan input, .weeklyPlan input, .weekGrid input, .weekCards input{
+  margin-top: 10px !important;
+  padding: 12px 12px !important;
+  border-radius: 14px !important;
+}
+
+/* Mobile weekly plan becomes 2 cols */
+@media (max-width: 520px){
+  .weekPlan, .weeklyPlan, .weekGrid, .weekCards{
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* ---------- Focus Mode button spacing + premium look ---------- */
+.focusControls, .focusBtns, .focusActions, .focusButtons{
+  display: flex !important;
+  gap: 10px !important;
+  justify-content: center !important;
+  flex-wrap: wrap !important;
+  margin-top: 14px !important;
+}
+
+.focusControls button, .focusBtns button, .focusActions button, .focusButtons button{
+  min-width: 120px;
+  border-radius: 14px !important;
+}
+
+/* If your focus overlay uses a modal card */
+.focusModal, .focusPanel, .focusOverlayCard{
+  border-radius: 22px !important;
+  border: 1px solid rgba(109,94,252,.25) !important;
+  box-shadow: 0 25px 60px rgba(15,23,42,.18) !important;
+}
+
+/* ---------- Plans: Save Plan + Sync button spacing ---------- */
+.planActions, .plansActions, .planBtns, .plansBtns{
+  display: flex !important;
+  gap: 12px !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  margin-top: 12px !important;
+}
+
+.planActions button, .plansActions button, .planBtns button, .plansBtns button{
+  min-width: 140px;
+  border-radius: 14px !important;
+}
+
+/* Plans form grid: better gaps */
+.planForm, .plansForm{
+  display: grid !important;
+  gap: 12px !important;
+}
+
+/* ---------- Saved Plans list: remove congestion ---------- */
+.savedPlans, .plansList, .planList, .plansItems{
+  display: grid !important;
+  gap: 12px !important;
+  margin-top: 14px !important;
+}
+
+.savedPlans .planItem, .plansList .planItem, .planList .planItem, .plansItems .planItem,
+.savedPlans .listItem, .plansList .listItem, .planList .listItem{
+  padding: 14px !important;
+  border-radius: 18px !important;
+  background: rgba(255,255,255,.72) !important;
+  border: 1px solid rgba(15,23,42,.08) !important;
+}
+
+.planMeta, .plansMeta{
+  display: flex !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+  margin-top: 8px !important;
+  color: rgba(15,23,42,.70);
+  font-size: 12.5px;
+}
+
+/* Buttons inside plan rows fit cleanly */
+.planItem .actions, .planItem .rowActions,
+.listItem .actions, .listItem .rowActions{
+  margin-top: 10px !important;
+  gap: 10px !important;
+}
+
+/* Mobile: plans buttons become full width for clarity */
+@media (max-width: 520px){
+  .planActions button, .plansActions button, .planBtns button, .plansBtns button{
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+
+/* ---------- Extra: crisp separators inside dense cards ---------- */
+.compactDivider, .miniDivider{
+  height: 1px;
+  background: rgba(15, 23, 42, 0.08);
+  margin: 12px 0;
+  border-radius: 999px;
+}
 
