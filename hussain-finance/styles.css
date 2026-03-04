@@ -417,3 +417,221 @@ input:focus,select:focus,textarea:focus{
     max-width: 240px;
   }
 }
+  /* =========================================================
+   FINAL UI PACK — Spacing + Layout + Buttons + Mobile polish
+   Paste at END of styles.css
+========================================================= */
+
+/* 1) Global spacing + sizing */
+:root{
+  --space-2xs:4px;
+  --space-xs:8px;
+  --space-sm:12px;
+  --space-md:16px;
+  --space-lg:24px;
+  --space-xl:32px;
+
+  --radius-sm:12px;
+  --radius-md:16px;
+  --radius-lg:20px;
+
+  --border: rgba(15, 23, 42, 0.08);
+  --softShadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+
+  --btn-h: 44px;
+  --btn-gap: 12px;
+
+  --card-pad: 18px;
+  --card-gap: 18px;
+
+  --text: #0f172a;
+  --muted: rgba(15,23,42,.66);
+  --bgCard: rgba(255,255,255,.75);
+}
+
+/* 2) Base typographic rhythm */
+body{
+  color: var(--text);
+}
+h1,h2,h3{
+  margin: 0 0 var(--space-xs) 0;
+  letter-spacing: -0.02em;
+}
+p, .subtitle, .muted, small{
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+/* 3) Universal “no-congestion” rules */
+*{ box-sizing:border-box; }
+section{ margin-top: var(--space-lg); }
+hr{ border:0; border-top:1px solid var(--border); margin: var(--space-lg) 0; }
+
+/* 4) Cards / modules — consistent padding and spacing */
+.card, .panel, .module, .glassCard{
+  background: var(--bgCard);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--softShadow);
+  padding: var(--card-pad);
+}
+.grid, .row, .stack{
+  gap: var(--card-gap);
+}
+
+/* If you have a main container */
+.container, main, .content{
+  padding: var(--space-lg);
+}
+
+/* 5) Forms: inputs, selects, textarea */
+input, select, textarea{
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  outline: none;
+  background: rgba(255,255,255,.92);
+}
+label{ display:block; margin-bottom: var(--space-2xs); color: var(--muted); }
+
+.formRow, .formGrid{
+  display: grid;
+  gap: var(--space-sm);
+}
+
+/* 6) Buttons — premium sizing + no overflow */
+button, .btn, a.btn{
+  min-height: var(--btn-h);
+  padding: 10px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.86);
+  color: var(--text);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+  white-space: nowrap;
+  max-width: 100%;
+}
+button:hover, .btn:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(15,23,42,.10);
+}
+button:active, .btn:active{ transform: translateY(0px); }
+
+/* Primary button (if you have .primary class) */
+.primary, .btnPrimary{
+  border: none;
+  color: white;
+}
+
+/* 7) Button groups / header tabs spacing */
+.tabs, .navPills, .topActions, .headerRight, .btnRow{
+  display:flex;
+  flex-wrap:wrap;
+  gap: var(--btn-gap);
+  align-items: center;
+}
+
+/* Force buttons in header to never overflow */
+.tabs button, .navPills button, .topActions button, .headerRight button{
+  flex: 1 1 auto;
+}
+
+/* 8) Tables / lists (Expenses etc.) look clean */
+.list, .table, .expensesList, .docsList, .notesList{
+  display: grid;
+  gap: var(--space-sm);
+}
+.listItem, .rowItem, .expenseRow, .docRow, .noteRow{
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm);
+  background: rgba(255,255,255,.70);
+}
+
+/* Make action buttons fit inside rows */
+.rowActions, .actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap: var(--space-xs);
+  justify-content:flex-end;
+}
+.rowActions button, .actions button{
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 12px;
+}
+
+/* 9) Header mobile layout: center title + buttons below in neat grid */
+@media (max-width: 520px){
+  header, .topbar, .header{
+    display:flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    gap: var(--space-md) !important;
+    padding: 18px 14px !important;
+    padding-top: calc(18px + env(safe-area-inset-top)) !important;
+  }
+
+  .brand, .brandArea, .headerLeft, .topLeft{
+    width: 100% !important;
+    display:flex !important;
+    flex-direction: column !important;
+    align-items:center !important;
+    gap: var(--space-xs) !important;
+  }
+
+  /* Buttons become professional grid under title */
+  .tabs, .navPills, .topActions, .headerRight{
+    width: 100% !important;
+    display:grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+
+  .tabs button, .navPills button, .topActions button, .headerRight button{
+    width: 100% !important;
+    white-space: normal !important;
+    line-height: 1.15 !important;
+    padding: 12px 10px !important;
+  }
+
+  /* If last button is alone (odd count), center it */
+  .tabs > :last-child:nth-child(odd),
+  .navPills > :last-child:nth-child(odd),
+  .topActions > :last-child:nth-child(odd),
+  .headerRight > :last-child:nth-child(odd){
+    grid-column: 1 / -1 !important;
+    justify-self:center !important;
+    max-width: 240px;
+  }
+
+  /* Global padding tighter for mobile but still clean */
+  .container, main, .content{
+    padding: var(--space-md) !important;
+  }
+}
+
+/* 10) Responsive grids: avoid squeezed columns */
+@media (max-width: 900px){
+  .grid3, .threeCol, .cards3{
+    grid-template-columns: 1fr !important;
+  }
+  .grid2, .twoCol, .cards2{
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* 11) Safety: prevent horizontal scrolling */
+html, body{
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
