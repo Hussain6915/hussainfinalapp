@@ -342,22 +342,19 @@ input:focus,select:focus,textarea:focus{
     margin-top: 12px;
   }
 
-  /* Make every button fit the grid nicely */
+@media (max-width: 520px) {
+  .tabs, .navPills, .headerRight, .topActions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px;
+  }
+
   .tabs button, .navPills button, .headerRight button, .topActions button,
   .tabs a, .navPills a, .headerRight a, .topActions a {
     width: 100%;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    padding: 12px 14px;
-    border-radius: 999px;
-    justify-content: center;
-  }
-
-  /* Optional: make the last row (Focus/Plans) look consistent */
-  .tabs button.small, .navPills button.small,
-  .headerRight button.small, .topActions button.small {
-    padding: 12px 14px;
+    padding: 12px 10px;
+    font-size: 12px;
+    white-space: normal;   /* wrap */
+    text-align: center;
   }
 }
