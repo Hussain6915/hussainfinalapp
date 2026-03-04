@@ -793,4 +793,214 @@ button:hover::after, .btn:hover::after, a.btn:hover::after{
   margin: 12px 0;
   border-radius: 999px;
 }
+/* =========================================================
+   FUTURISTIC SURPRISE + SPACING BOOST (CSS-only)
+   Paste at END of styles.css
+========================================================= */
+
+/* ---------- Global breathing room boost (fix "congested") ---------- */
+:root{
+  --space-2xs:6px;
+  --space-xs:10px;
+  --space-sm:14px;
+  --space-md:18px;
+  --space-lg:28px;
+  --space-xl:38px;
+
+  --card-pad: 22px;
+  --card-gap: 20px;
+
+  --btn-gap: 14px;
+  --btn-h: 46px;
+
+  --glowA: rgba(109, 94, 252, .26);
+  --glowB: rgba(0, 200, 255, .18);
+  --glowC: rgba(255, 106, 213, .16);
+}
+
+/* More space between major blocks everywhere */
+section{ margin-top: var(--space-lg) !important; }
+.card, .panel, .module, .glassCard{ padding: var(--card-pad) !important; }
+.grid, .row, .stack, .formGrid, .formRow{ gap: var(--card-gap) !important; }
+.container, main, .content{ padding: var(--space-lg) !important; }
+
+/* Inputs/labels spacing feels premium */
+label{ margin-bottom: var(--space-2xs) !important; }
+input, select, textarea{
+  margin-top: var(--space-2xs) !important;
+  margin-bottom: var(--space-sm) !important;
+  padding: 13px 15px !important;
+  border-radius: 14px !important;
+}
+
+/* Buttons breathing room */
+.tabs, .navPills, .topActions, .headerRight, .btnRow{
+  gap: var(--btn-gap) !important;
+}
+button, .btn, a.btn{
+  min-height: var(--btn-h) !important;
+  padding: 11px 18px !important;
+  border-radius: 16px !important;
+}
+
+/* ---------- Futuristic glass + animated “aura” ---------- */
+@keyframes floatGlow {
+  0%{ transform: translateY(0); filter: blur(18px); opacity:.55; }
+  50%{ transform: translateY(-6px); filter: blur(22px); opacity:.75; }
+  100%{ transform: translateY(0); filter: blur(18px); opacity:.55; }
+}
+
+.card, .panel, .module, .glassCard{
+  position: relative;
+  overflow: hidden;
+  background: rgba(255,255,255,.72) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(15,23,42,.08) !important;
+  box-shadow: 0 18px 55px rgba(15,23,42,.10) !important;
+}
+
+/* Floating aura behind each card */
+.card::before, .panel::before, .module::before, .glassCard::before{
+  content:"";
+  position:absolute;
+  inset:-40px;
+  background:
+    radial-gradient(400px 200px at 20% 20%, var(--glowA), transparent 60%),
+    radial-gradient(380px 220px at 85% 15%, var(--glowB), transparent 60%),
+    radial-gradient(420px 240px at 30% 90%, var(--glowC), transparent 65%);
+  animation: floatGlow 6.5s ease-in-out infinite;
+  pointer-events:none;
+  z-index:0;
+}
+
+/* Shine sweep (subtle Apple-like) */
+@keyframes shineSweep {
+  0%{ transform: translateX(-120%) skewX(-18deg); opacity:0; }
+  10%{ opacity:.35; }
+  55%{ opacity:.10; }
+  100%{ transform: translateX(140%) skewX(-18deg); opacity:0; }
+}
+.card::after, .panel::after, .module::after, .glassCard::after{
+  content:"";
+  position:absolute;
+  top:-40%;
+  left:-60%;
+  width: 60%;
+  height: 180%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+  animation: shineSweep 7.5s ease-in-out infinite;
+  pointer-events:none;
+  z-index:0;
+}
+
+/* Ensure content stays above effects */
+.card > *, .panel > *, .module > *, .glassCard > *{
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- Surprise hover: “tilt” + neon edge ---------- */
+@keyframes neonPulse {
+  0%,100%{ box-shadow: 0 18px 55px rgba(15,23,42,.10); }
+  50%{ box-shadow: 0 24px 70px rgba(109,94,252,.18); }
+}
+.card:hover, .panel:hover, .module:hover, .glassCard:hover{
+  transform: translateY(-3px);
+  border-color: rgba(109,94,252,.22) !important;
+  animation: neonPulse 1.8s ease-in-out infinite;
+}
+
+/* ---------- Buttons: animated gradient border + glow on hover ---------- */
+button, .btn, a.btn{
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(15,23,42,.10) !important;
+  background: rgba(255,255,255,.86) !important;
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+
+button:hover, .btn:hover, a.btn:hover{
+  transform: translateY(-2px);
+  box-shadow: 0 16px 30px rgba(15,23,42,.12);
+}
+
+button::before, .btn::before, a.btn::before{
+  content:"";
+  position:absolute;
+  inset:-2px;
+  background: linear-gradient(135deg,
+    rgba(109,94,252,.65),
+    rgba(0,200,255,.45),
+    rgba(255,106,213,.40)
+  );
+  opacity:0;
+  filter: blur(10px);
+  transition: opacity .2s ease;
+  pointer-events:none;
+}
+button:hover::before, .btn:hover::before, a.btn:hover::before{
+  opacity:.45;
+}
+
+/* Active / Primary look */
+.active, .isActive, .selectedTab, .primary, .btnPrimary{
+  background: linear-gradient(135deg, #6d5efc, #8b7bff) !important;
+  color: #fff !important;
+  border: none !important;
+  box-shadow: 0 18px 38px rgba(109,94,252,.26) !important;
+}
+
+/* ---------- Lists: roomy rows + clear separation ---------- */
+.list, .table, .expensesList, .docsList, .notesList, .plansList, .savedPlans{
+  gap: var(--space-md) !important;
+}
+
+.listItem, .rowItem, .expenseRow, .docRow, .noteRow, .planItem{
+  padding: 16px 16px !important;
+  border-radius: 18px !important;
+  background: rgba(255,255,255,.72) !important;
+  border: 1px solid rgba(15,23,42,.08) !important;
+}
+
+.rowActions, .actions{
+  margin-top: var(--space-sm) !important;
+  gap: 10px !important;
+}
+
+/* ---------- Weekly plan: even more airy ---------- */
+.weekPlan, .weeklyPlan, .weekGrid, .weekCards{
+  gap: 14px !important;
+  margin-top: 14px !important;
+}
+.weekPlan .weekCard, .weeklyPlan .weekCard,
+.weekGrid .weekCard, .weekCards .weekCard{
+  padding: 16px !important;
+}
+
+/* ---------- Focus modal polish ---------- */
+.focusModal, .focusPanel, .focusOverlayCard{
+  border-radius: 26px !important;
+  border: 1px solid rgba(109,94,252,.28) !important;
+  box-shadow: 0 30px 80px rgba(15,23,42,.20) !important;
+}
+
+/* ---------- Mobile: cleaner header + button grid ---------- */
+@media (max-width: 520px){
+  header, .topbar, .header{
+    gap: 16px !important;
+    padding: 18px 14px !important;
+    padding-top: calc(18px + env(safe-area-inset-top)) !important;
+  }
+  .tabs, .navPills, .topActions, .headerRight{
+    gap: 12px !important;
+  }
+  .container, main, .content{
+    padding: var(--space-md) !important;
+  }
+}
+
+/* ---------- Micro detail: smooth scroll + tap highlight off (app feel) ---------- */
+html{ scroll-behavior:smooth; }
+*{ -webkit-tap-highlight-color: transparent; }
 
