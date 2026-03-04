@@ -43,6 +43,7 @@
       <button class="tabBtn" data-tab="quotes">Daily Quran</button>
       <button class="tabBtn" data-tab="focus">Focus</button>
       <button class="tabBtn" data-tab="plans">Plans</button>
+      <button class="tabBtn" data-tab="supsain">Sup&#39; Sain</button>
     </nav>
   </header>
 
@@ -407,76 +408,87 @@
 
     <!-- ===== QUOTES ===== -->
     <section class="view hidden" id="view-quotes">
-      <div class="card">
-        <div class="cardHead">
-          <div>
-            <div class="title">Daily Quran</div>
-            <div class="hint">Live fetched • 4 items</div>
-          </div>
-          <div class="row gap wrap">
+      <div class="grid2">
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">Daily Quran</div>
+              <div class="hint">Tap refresh to get new ayahs</div>
+            </div>
             <button class="btn" data-action="refreshQuotes">Refresh</button>
-            <button class="btn ghost" data-action="forceSync">Sync Now</button>
           </div>
+          <div id="quoteList" class="quoteList"></div>
         </div>
 
-        <div id="quoteList" class="quoteList"></div>
-
-        <div class="hr"></div>
-
-        <div class="field">
-          <label>Reflection (saved)</label>
-          <textarea id="quoteReflection" rows="4" placeholder="what did you learn today?"></textarea>
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">Reflection</div>
+              <div class="hint">Write your thoughts</div>
+            </div>
+            <button class="btn" data-action="saveReflection">Save</button>
+          </div>
+          <textarea id="quoteReflection" rows="12" placeholder="what did you feel today?"></textarea>
         </div>
       </div>
     </section>
 
     <!-- ===== FOCUS ===== -->
     <section class="view hidden" id="view-focus">
-      <div class="card">
-        <div class="cardHead">
-          <div>
-            <div class="title">Focus Mode</div>
-            <div class="hint">Fullscreen + overlay • simple</div>
+      <div class="grid2">
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">Focus Timer</div>
+              <div class="hint">Start and keep overlay visible</div>
+            </div>
           </div>
-          <div class="row gap wrap">
-            <button class="btn" data-action="toggleOverlay">Toggle Overlay</button>
-            <button class="btn ghost" data-action="goFullscreen">Fullscreen</button>
-          </div>
-        </div>
 
-        <div class="grid2">
-          <div class="card inner">
+          <div class="row center" style="margin-top:10px">
+            <div class="focusTime" id="focusCountdown">00:00</div>
+          </div>
+
+          <div class="grid2 tight" style="margin-top:10px">
             <div class="field">
               <label>Minutes</label>
               <input id="focusMinutes" inputmode="numeric" placeholder="e.g. 25" />
             </div>
-            <div class="row gap wrap">
-              <button class="btn" data-action="startFocus">Start</button>
-              <button class="btn danger" data-action="stopFocus">Stop</button>
+            <div class="field">
+              <label>Actions</label>
+              <div class="row gap wrap">
+                <button class="btn" data-action="startFocus">Start</button>
+                <button class="btn danger" data-action="stopFocus">Stop</button>
+              </div>
             </div>
           </div>
 
-          <div class="card inner">
-            <div class="titleSm">Countdown</div>
-            <div class="focusTime" id="focusCountdown">00:00</div>
-            <div class="hint">Stay on one task. You’ve got this.</div>
+          <div class="hint" style="margin-top:10px">Overlay shows on top of everything while you focus.</div>
+        </div>
+
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">Overlay</div>
+              <div class="hint">Full-screen focus overlay</div>
+            </div>
+            <button class="btn ghost" data-action="toggleOverlay">Toggle</button>
+          </div>
+          <div class="hint">If you start focus, overlay auto enables.</div>
+        </div>
+      </div>
+
+      <div class="overlay hidden" id="focusOverlay" hidden>
+        <div class="overlayCard">
+          <div class="overlayTitle">Focus Mode</div>
+          <div class="overlayTime" id="focusCountdownOverlay">00:00</div>
+          <div class="overlayHint">Stay calm. One step at a time.</div>
+          <div class="row center gap wrap">
+            <button class="btn danger" data-action="stopFocus">Stop</button>
+            <button class="btn ghost" data-action="toggleOverlay">Hide</button>
           </div>
         </div>
       </div>
     </section>
-
-    <!-- Focus Overlay -->
-    <div id="focusOverlay" class="overlay hidden" hidden>
-      <div class="overlayCard">
-        <div class="overlayTitle">Focus Mode</div>
-        <div class="overlayTime" id="focusCountdownOverlay">00:00</div>
-        <div class="overlayHint">Stay on one task. You've got this.</div>
-        <div class="row gap center wrap">
-          <button class="btn danger" data-action="stopFocus">Stop</button>
-          <button class="btn ghost" data-action="hideOverlay">Hide</button>
-        </div>
-      </div>
-    </div>
 
     <!-- ===== PLANS ===== -->
     <section class="view hidden" id="view-plans">
@@ -485,29 +497,25 @@
           <div class="cardHead">
             <div>
               <div class="title">Plans</div>
-              <div class="hint">Pick category • pin map • save</div>
+              <div class="hint">Add plans + location pin</div>
             </div>
           </div>
 
           <div class="grid2 tight">
             <div class="field">
-              <label>Category</label>
-              <select id="planCategory">
-                <option>outing</option>
-                <option>movies</option>
-                <option>experiments</option>
-                <option>home based</option>
-              </select>
+              <label>Name</label>
+              <input id="planName" placeholder="e.g. Meeting, Gym, Study" />
             </div>
             <div class="field">
-              <label>Name</label>
-              <input id="planName" placeholder="e.g. Sea View Walk" />
+              <label>Category</label>
+              <select id="planCat">
+                <option>Work</option>
+                <option>Personal</option>
+                <option>Health</option>
+                <option>Family</option>
+                <option>Learning</option>
+              </select>
             </div>
-          </div>
-
-          <div class="field">
-            <label>Description</label>
-            <input id="planDesc" placeholder="quick details..." />
           </div>
 
           <div class="grid2 tight">
@@ -522,22 +530,28 @@
           </div>
 
           <div class="field">
-            <label>Search Place</label>
-            <div class="row gap wrap">
-              <input id="mapSearch" placeholder="e.g. Dolmen Mall Karachi" />
-              <button class="btn" data-action="searchMap">Search</button>
-              <button class="btn ghost" data-action="clearPin">Clear Pin</button>
-            </div>
-            <div class="hint">Tip: click on map to drop a pin.</div>
+            <label>Description</label>
+            <input id="planDesc" placeholder="short note..." />
           </div>
 
-          <div class="row gap wrap">
-            <button class="btn" data-action="savePlan">Save Plan</button>
-            <button class="btn ghost" data-action="forceSync">Sync Now</button>
+          <div class="grid2 tight">
+            <div class="field">
+              <label>Search place (map)</label>
+              <div class="row gap">
+                <input id="mapSearch" placeholder="e.g. Shalimar Gardens" />
+                <button class="btn" data-action="searchPlace">Search</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>Save</label>
+              <div class="row gap">
+                <button class="btn" data-action="savePlan">Save Plan</button>
+                <button class="btn ghost" data-action="clearPlans">Clear All</button>
+              </div>
+            </div>
           </div>
 
           <div class="hr"></div>
-          <div class="titleSm">Saved Plans</div>
           <div id="plansList" class="list"></div>
         </div>
 
@@ -545,18 +559,133 @@
           <div class="cardHead">
             <div>
               <div class="title">Map</div>
-              <div class="hint">Live OpenStreetMap</div>
+              <div class="hint">Tap anywhere to pin</div>
             </div>
           </div>
           <div id="plansMap" class="mapBox"></div>
         </div>
       </div>
     </section>
+
+    <!-- ===== SUP' SAIN ===== -->
+    <section class="view hidden" id="view-supsain">
+      <div class="grid2">
+        <!-- News -->
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">Sup' Sain</div>
+              <div class="hint">Fresh updates • tap refresh to get new picks</div>
+            </div>
+            <button class="btn" data-action="ssRefresh" data-section="news">Refresh</button>
+          </div>
+          <div class="titleSm">Top 3 News</div>
+          <div id="ssNews" class="list"></div>
+          <div class="hint">2 Pakistan • 1 World</div>
+        </div>
+
+        <!-- Do You Know -->
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">Do You Know</div>
+              <div class="hint">Mind-blowing quick facts</div>
+            </div>
+            <button class="btn" data-action="ssRefresh" data-section="doy">Refresh</button>
+          </div>
+          <div id="ssDoy" class="list"></div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <!-- Islamic reminders -->
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">Islamic Reminders</div>
+              <div class="hint">Short guidance to keep you grounded</div>
+            </div>
+            <button class="btn" data-action="ssRefresh" data-section="islam">Refresh</button>
+          </div>
+          <div id="ssIslam" class="list"></div>
+          <div class="hint">Note: general reminders (not a fatwa).</div>
+        </div>
+
+        <!-- Questions -->
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">3 Questions</div>
+              <div class="hint">One general • one easy math • one quiz</div>
+            </div>
+            <button class="btn" data-action="ssRefresh" data-section="quiz">Refresh</button>
+          </div>
+          <div id="ssQuiz" class="list"></div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <!-- Innovations -->
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">Top Innovations</div>
+              <div class="hint">Trending tech & product moves</div>
+            </div>
+            <button class="btn" data-action="ssRefresh" data-section="innov">Refresh</button>
+          </div>
+          <div id="ssInnov" class="list"></div>
+        </div>
+
+        <!-- Weekend -->
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">Weekend Ideas (Pakistan)</div>
+              <div class="hint">Quick, practical things to do</div>
+            </div>
+            <button class="btn" data-action="ssRefresh" data-section="weekend">Refresh</button>
+          </div>
+          <div id="ssWeekend" class="list"></div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <!-- Business ideas -->
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">Business Ideas</div>
+              <div class="hint">Simple starters you can execute</div>
+            </div>
+            <button class="btn" data-action="ssRefresh" data-section="biz">Refresh</button>
+          </div>
+          <div id="ssBiz" class="list"></div>
+        </div>
+
+        <!-- Jokes -->
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div class="title">Funny Jokes</div>
+              <div class="hint">1 English • 1 Urdu • 1 Mix</div>
+            </div>
+            <button class="btn" data-action="ssRefresh" data-section="jokes">Refresh</button>
+          </div>
+          <div id="ssJokes" class="list"></div>
+        </div>
+      </div>
+    </section>
   </main>
 
-  <footer class="footer">
-    Tip: Data saves to your server when hosted (sync across devices). LocalStorage is fallback.
-  </footer>
-</body>
+  <div class="footer">
+    Built for Hussain — offline-first PWA • sync on Vercel KV (when hosted)
+  </div>
 
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js");
+    }
+  </script>
+</body>
 </html>
