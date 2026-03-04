@@ -1,4 +1,4 @@
-const CACHE = "hussain-dashboard-v1";
+const CACHE = "hussain-dashboard-v2";
 const ASSETS = [
   "./",
   "./index.html",
