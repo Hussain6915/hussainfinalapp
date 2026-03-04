@@ -320,4 +320,44 @@ input:focus,select:focus,textarea:focus{
 
 /* Force-hide overlay when hidden */
 #focusOverlay[hidden]{display:none !important;}
+
 #focusOverlay.hidden{display:none !important;}
+
+/* ---------- Mobile: sort + grid the top module buttons ---------- */
+@media (max-width: 520px) {
+  /* Give header proper spacing + iOS safe area */
+  header, .topbar, .header {
+    padding-top: calc(14px + env(safe-area-inset-top));
+  }
+
+  /* If your top nav container is .tabs or .navPills or .headerRight,
+     include all here so one matches your project */
+  .tabs, .navPills, .headerRight, .topActions {
+    width: 100%;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    justify-items: stretch;
+    align-items: stretch;
+    margin-top: 12px;
+  }
+
+  /* Make every button fit the grid nicely */
+  .tabs button, .navPills button, .headerRight button, .topActions button,
+  .tabs a, .navPills a, .headerRight a, .topActions a {
+    width: 100%;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 12px 14px;
+    border-radius: 999px;
+    justify-content: center;
+  }
+
+  /* Optional: make the last row (Focus/Plans) look consistent */
+  .tabs button.small, .navPills button.small,
+  .headerRight button.small, .topActions button.small {
+    padding: 12px 14px;
+  }
+}
