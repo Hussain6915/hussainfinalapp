@@ -1003,4 +1003,19 @@ button:hover::before, .btn:hover::before, a.btn:hover::before{
 /* ---------- Micro detail: smooth scroll + tap highlight off (app feel) ---------- */
 html{ scroll-behavior:smooth; }
 *{ -webkit-tap-highlight-color: transparent; }
+body{
+  position: relative;
+}
+body::before{
+  content:"";
+  position: fixed;
+  inset: -20%;
+  background:
+    radial-gradient(900px 420px at 15% 20%, rgba(109,94,252,.12), transparent 60%),
+    radial-gradient(850px 380px at 85% 25%, rgba(0,200,255,.10), transparent 60%),
+    radial-gradient(1000px 500px at 35% 90%, rgba(255,106,213,.08), transparent 65%);
+  filter: blur(18px);
+  z-index: -1;
+  animation: floatGlow 10s ease-in-out infinite;
+}
 
