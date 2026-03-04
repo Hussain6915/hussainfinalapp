@@ -341,20 +341,33 @@ input:focus,select:focus,textarea:focus{
     align-items: stretch;
     margin-top: 12px;
   }
-
+/* ---------- iOS / Mobile: readable module buttons (no truncation) ---------- */
 @media (max-width: 520px) {
+
+  /* container holding the module buttons (one of these will match) */
   .tabs, .navPills, .headerRight, .topActions {
+    width: 100%;
     display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
+    grid-template-columns: 1fr !important;   /* ONE column */
     gap: 10px;
+    margin-top: 12px;
+    justify-items: stretch;
   }
 
+  /* buttons full width */
   .tabs button, .navPills button, .headerRight button, .topActions button,
   .tabs a, .navPills a, .headerRight a, .topActions a {
     width: 100%;
-    padding: 12px 10px;
-    font-size: 12px;
-    white-space: normal;   /* wrap */
-    text-align: center;
+    min-width: 0;
+    padding: 12px 16px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: normal;     /* allow wrapping if needed */
+    overflow: visible;
+    text-overflow: unset;
+    font-size: 14px;
+    line-height: 1.1;
   }
 }
