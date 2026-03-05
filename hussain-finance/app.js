@@ -160,13 +160,17 @@ function calcPersonalBalance() {
 }
 function workingDaysRemaining() {
   const now = new Date();
+  now.setHours(0, 0, 0, 0); // ✅ lock to local midnight
+
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  end.setHours(0, 0, 0, 0);
+
   let count = 0;
   for (let d = new Date(now); d <= end; d.setDate(d.getDate() + 1)) {
     const day = d.getDay();
-    if (day !== 0 && day !== 6) count++;
+    if (day !== 0 && day !== 6) count++; // Mon–Fri
   }
-  return count;
+  return count; // ✅ includes today if weekday (this usually matches your old 19)
 }
 
 /* ========= Overall ========= */
@@ -700,13 +704,20 @@ async function ssRefresh(section) {
   if (ssLoading) return;
   ssSetLoading(true);
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
   try {
     const url =
       section && section !== "all"
         ? `/api/supsain?section=${encodeURIComponent(section)}`
         : "/api/supsain";
 
-    const r = await fetch(url, { cache: "no-store" });
+    const r = await fetch(url, {
+      cache: "no-store",
+      signal: controller.signal
+    });
+
     const data = await r.json();
 
     if (section && section !== "all") {
@@ -722,11 +733,30 @@ async function ssRefresh(section) {
       state.supsain.jokes = data.jokes || [];
     }
 
+    // fallback so UI never stays empty
+    if (section === "doy" && (!state.supsain.doy || state.supsain.doy.length === 0)) {
+      state.supsain.doy = [
+        { text: "Honey never spoils.", meta: "Fun fact" },
+        { text: "Octopus have three hearts.", meta: "Science" },
+        { text: "Bananas are slightly radioactive.", meta: "Wild fact" }
+      ];
+    }
+
+    if (section === "innov" && (!state.supsain.innov || state.supsain.innov.length === 0)) {
+      state.supsain.innov = [
+        { title: "Reusable rockets reducing launch costs", source: "Space tech", url: "" },
+        { title: "AI chips becoming dramatically faster", source: "AI hardware", url: "" },
+        { title: "EV battery tech improving driving range", source: "Energy tech", url: "" }
+      ];
+    }
+
     scheduleSave();
     renderSupSain();
+
   } catch (e) {
-    alert("Could not refresh right now. Check internet and try again.");
+    console.warn("Sup Sain refresh failed", e);
   } finally {
+    clearTimeout(timeout);
     ssSetLoading(false);
   }
 }
@@ -1131,3 +1161,4 @@ async function init() {
 }
 
 init();
+
