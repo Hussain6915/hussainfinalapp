@@ -13,64 +13,14 @@ let USE_REMOTE = false;
 let saveTimer = null;
 
 /* ========= Helpers ========= */
-const uid = () => Math.random().toString(16).slice(2) + Date.now().toString(16);
-
-function toNum(v) {
-  const n = Number(String(v ?? "").replaceAll(",", ""));
+const uid = () => Math.random().toString(16).slice(2) + "-" + Date.now().toString(16);
+const toNum = (v) => {
+  const n = Number(String(v ?? "").replaceAll(",", "").trim());
   return Number.isFinite(n) ? n : 0;
-}
+};
+const fmt = (n) => Number(n || 0).toLocaleString();
 
-function fmt(n) {
-  const x = Math.round(toNum(n));
-  return x.toLocaleString();
-}
-
-function escapeHtml(s) {
-  return String(s ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function isSameDay(a, b) {
-  if (!a || !b) return false;
-  const da = new Date(a);
-  const db = new Date(b);
-  return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
-}
-
-function todayKey() {
-  const d = new Date();
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-}
-
-function clamp0(n) {
-  return Math.max(0, toNum(n));
-}
-
-function startOfMonth(d = new Date()) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-
-function endOfMonth(d = new Date()) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
-}
-
-function workingDaysRemaining() {
-  // remaining working days incl today (Mon-Fri)
-  const now = new Date();
-  const end = endOfMonth(now);
-  let count = 0;
-  for (let d = new Date(now); d <= end; d.setDate(d.getDate() + 1)) {
-    const day = d.getDay();
-    if (day !== 0 && day !== 6) count++;
-  }
-  return count;
-}
-
-/* ========= State ========= */
+/* ========= Default State ========= */
 const state = {
   overall: { current: 0, savings: 0, monthly: 0 },
   current: { balance: 0, savings: 0 },
@@ -78,12 +28,12 @@ const state = {
     base: 10500,
     updated: 10500,
     workingDaysRemaining: null,
-    weekPlan: { 1: "", 2: "", 3: "", 4: "" }
+    weekPlan: { 1: "", 2: "", 3: "", 4: "" },
+    lastUpdatedDate: null
   },
-  expenses: [], // {id, kind:'Expense'|'Service', name, notes, amount, occurred, createdAt}
+  expenses: [], // {id, kind, name, notes, amount, occurred, createdAt}
   notes: [], // {id,title,body,updatedAt}
-  docs: [],  // {id,name,type,dataUrl,createdAt}
-
+  docs: [],  // {id,name,type,url,createdAt} (blob urls)
   water: { targetMl: 3000, glasses: 0, mlPerGlass: 250, lastDate: null },
   quotes: { items: [], reflection: "" },
   focus: { running: false, endAt: null, overlay: false },
@@ -105,18 +55,37 @@ const state = {
 /* ========= Remote Sync ========= */
 async function detectRemote() {
   try {
-    const r = await fetch("/api/state", { method: "GET" });
+    const r = await fetch("/api/state", { cache: "no-store" });
     USE_REMOTE = r.ok;
   } catch {
     USE_REMOTE = false;
   }
 }
 
+function mergeState(s) {
+  if (!s || typeof s !== "object") return;
+  if (s.overall) Object.assign(state.overall, s.overall);
+  if (s.current) Object.assign(state.current, s.current);
+  if (s.daily) Object.assign(state.daily, s.daily);
+  if (Array.isArray(s.expenses)) state.expenses = s.expenses;
+  if (Array.isArray(s.notes)) state.notes = s.notes;
+  if (Array.isArray(s.docs)) state.docs = s.docs;
+  if (s.water) Object.assign(state.water, s.water);
+  if (s.quotes) Object.assign(state.quotes, s.quotes);
+  if (s.focus) Object.assign(state.focus, s.focus);
+  if (s.plans) Object.assign(state.plans, s.plans);
+  if (s.supsain) Object.assign(state.supsain, s.supsain);
+
+  // Safety defaults
+  if (!state.daily.weekPlan) state.daily.weekPlan = { 1: "", 2: "", 3: "", 4: "" };
+  if (!state.water.mlPerGlass) state.water.mlPerGlass = 250;
+  if (!state.water.targetMl) state.water.targetMl = 3000;
+}
+
 async function loadState() {
-  // try remote
   if (USE_REMOTE) {
     try {
-      const r = await fetch("/api/state", { method: "GET" });
+      const r = await fetch("/api/state", { method: "GET", cache: "no-store" });
       if (r.ok) {
         const j = await r.json();
         if (j?.state) mergeState(j.state);
@@ -125,44 +94,15 @@ async function loadState() {
     } catch {}
   }
 
-  // local fallback
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) mergeState(JSON.parse(raw));
   } catch {}
 }
 
-function mergeState(s) {
-  if (!s || typeof s !== "object") return;
-
-  // shallow merge carefully
-  if (s.overall) Object.assign(state.overall, s.overall);
-  if (s.current) Object.assign(state.current, s.current);
-  if (s.daily) {
-    Object.assign(state.daily, s.daily);
-    if (!state.daily.weekPlan) state.daily.weekPlan = { 1: "", 2: "", 3: "", 4: "" };
-  }
-
-  if (Array.isArray(s.expenses)) state.expenses = s.expenses;
-  if (Array.isArray(s.notes)) state.notes = s.notes;
-  if (Array.isArray(s.docs)) state.docs = s.docs;
-
-  if (s.water) Object.assign(state.water, s.water);
-  if (s.quotes) Object.assign(state.quotes, s.quotes);
-  if (s.focus) Object.assign(state.focus, s.focus);
-  if (s.plans) Object.assign(state.plans, s.plans);
-
-  if (s.supsain) Object.assign(state.supsain, s.supsain);
-
-  // safety defaults
-  if (!state.water.mlPerGlass) state.water.mlPerGlass = 250;
-  if (!state.water.targetMl) state.water.targetMl = 3000;
-}
-
 async function saveState() {
   const payload = JSON.stringify(state);
 
-  // local always
   try { localStorage.setItem(STORAGE_KEY, payload); } catch {}
 
   if (!USE_REMOTE) return;
@@ -178,7 +118,7 @@ async function saveState() {
 
 function scheduleSave() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(saveState, 400);
+  saveTimer = setTimeout(saveState, 350);
 }
 
 /* ========= Tabs ========= */
@@ -201,114 +141,117 @@ function setTab(tab) {
   if (tab === "supsain") renderSupSain();
 }
 
+/* ========= Finance Calculations ========= */
+function sumExpensesAll() {
+  return state.expenses.reduce((a, e) => a + toNum(e.amount), 0);
+}
+function sumExpensesOccurred() {
+  return state.expenses.filter(e => !!e.occurred).reduce((a, e) => a + toNum(e.amount), 0);
+}
+function calcRemainBalanceMain() {
+  const bal = toNum(state.current.balance);
+  const occurred = sumExpensesOccurred();
+  return Math.max(0, bal - occurred);
+}
+function calcPersonalBalance() {
+  const remain = Math.max(0, toNum(state.current.balance));
+  const totalAll = sumExpensesAll();
+  return Math.max(0, remain - totalAll);
+}
+function workingDaysRemaining() {
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  let count = 0;
+  for (let d = new Date(now); d <= end; d.setDate(d.getDate() + 1)) {
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) count++;
+  }
+  return count;
+}
+
 /* ========= Overall ========= */
 let chartOverall = null;
 let chartMonthly = null;
+let chartOccur = null;
+let chartSvc = null;
 
 function renderOverall() {
   $("#overallCurrentValue").textContent = fmt(state.overall.current);
   $("#overallSavingsValue").textContent = fmt(state.overall.savings);
   $("#overallMonthlyValue").textContent = fmt(state.overall.monthly);
+  renderCharts();
+}
 
-  // charts
-  if (window.Chart) {
-    const ctx1 = $("#chartOverall");
-    const ctx2 = $("#chartMonthly");
+function renderCharts() {
+  if (!window.Chart) return;
 
-    const data1 = {
-      labels: ["Current", "Savings"],
-      datasets: [{ label: "Amount", data: [state.overall.current, state.overall.savings] }]
-    };
+  const ov = [toNum(state.overall.current), toNum(state.overall.savings)];
+  const m = [toNum(state.overall.monthly), toNum(state.overall.current), toNum(state.overall.savings)];
 
-    const data2 = {
-      labels: ["Monthly", "Current", "Savings"],
-      datasets: [{ label: "Amount", data: [state.overall.monthly, state.overall.current, state.overall.savings] }]
-    };
-
-    if (chartOverall) chartOverall.destroy();
-    if (chartMonthly) chartMonthly.destroy();
-
-    chartOverall = new Chart(ctx1, {
-      type: "bar",
-      data: data1,
-      options: { responsive: true, maintainAspectRatio: false }
+  // Overall
+  const c1 = $("#chartOverall");
+  if (c1) {
+    chartOverall?.destroy();
+    chartOverall = new Chart(c1, {
+      type: "doughnut",
+      data: {
+        labels: ["Current", "Savings"],
+        datasets: [{ data: ov }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: "bottom" } }
+      }
     });
+  }
 
-    chartMonthly = new Chart(ctx2, {
+  // Monthly
+  const c2 = $("#chartMonthly");
+  if (c2) {
+    chartMonthly?.destroy();
+    chartMonthly = new Chart(c2, {
       type: "bar",
-      data: data2,
-      options: { responsive: true, maintainAspectRatio: false }
+      data: {
+        labels: ["Monthly", "Current", "Savings"],
+        datasets: [{ label: "Overall", data: m }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: "bottom" } }
+      }
+    });
+  }
+
+  // Current tab charts
+  const c3 = $("#chartOccur");
+  if (c3) {
+    const occurred = sumExpensesOccurred();
+    const pending = Math.max(0, sumExpensesAll() - occurred);
+    chartOccur?.destroy();
+    chartOccur = new Chart(c3, {
+      type: "doughnut",
+      data: { labels: ["Occurred", "Pending"], datasets: [{ data: [occurred, pending] }] },
+      options: { responsive: true, plugins: { legend: { position: "bottom" } } }
+    });
+  }
+
+  const c4 = $("#chartSvc");
+  if (c4) {
+    const svc = state.expenses.filter(e => e.kind === "Service").reduce((a, e) => a + toNum(e.amount), 0);
+    const exp = state.expenses.filter(e => e.kind === "Expense").reduce((a, e) => a + toNum(e.amount), 0);
+    chartSvc?.destroy();
+    chartSvc = new Chart(c4, {
+      type: "doughnut",
+      data: { labels: ["Services", "Expenses"], datasets: [{ data: [svc, exp] }] },
+      options: { responsive: true, plugins: { legend: { position: "bottom" } } }
     });
   }
 }
 
-/* ========= Current Finance ========= */
-let chartOccur = null;
-let chartSvc = null;
-
-function calcPersonalBalance() {
-  // Personal = remain balance - all expenses (pending+occurred)
-  const remain = clamp0(state.current.balance);
-  const totalAll = state.expenses.reduce((a, e) => a + clamp0(e.amount), 0);
-  return clamp0(remain - totalAll);
-}
-
-function calcRemainBalanceMain() {
-  // remain = balance - occurred expenses only
-  const bal = clamp0(state.current.balance);
-  const occurredTotal = state.expenses.filter(e => !!e.occurred).reduce((a, e) => a + clamp0(e.amount), 0);
-  return clamp0(bal - occurredTotal);
-}
-
-function renderCurrent() {
-  // inputs
-  $("#curBalance").value = state.current.balance || "";
-  $("#curSavings").value = state.current.savings || "";
-
-  // remain & savings always green
-  const remain = calcRemainBalanceMain();
-  $("#remainBalance").textContent = fmt(remain);
-  $("#savingsAlwaysGreen").textContent = fmt(state.current.savings);
-
-  // personal
-  const personal = calcPersonalBalance();
-  $("#personalBalance").textContent = fmt(personal);
-
-  // daily base / spent today
-  $("#dailyBase").value = state.daily.base ?? 10500;
-  $("#spentToday").value = "";
-
-  // recompute working days remaining
-  state.daily.workingDaysRemaining = workingDaysRemaining();
-  $("#workDaysRemain").textContent = String(state.daily.workingDaysRemaining ?? "—");
-
-  // ensure daily updated at least base
-  if (!Number.isFinite(toNum(state.daily.updated)) || state.daily.updated <= 0) {
-    state.daily.updated = clamp0(state.daily.base);
-  }
-  $("#dailyUpdated").textContent = fmt(state.daily.updated);
-
-  const perDay = state.daily.workingDaysRemaining ? Math.floor(personal / state.daily.workingDaysRemaining) : 0;
-  $("#perDay").textContent = fmt(perDay);
-
-  const weekly = clamp0(personal - state.daily.updated);
-  $("#weeklyBalance").textContent = fmt(weekly);
-  const perWeek = Math.floor(weekly / 4);
-  $("#perWeek").textContent = fmt(perWeek);
-
-  // week plan
-  $$(".weekInput").forEach(inp => {
-    const w = inp.dataset.week;
-    inp.value = state.daily.weekPlan?.[w] ?? "";
-  });
-
-  // expenses list + charts
-  renderExpensesTable();
-  renderExpenseCharts();
-}
-
+/* ========= Current ========= */
 function renderExpensesTable() {
   const tb = $("#expensesTbody");
+  if (!tb) return;
   tb.innerHTML = "";
 
   for (const e of state.expenses) {
@@ -333,50 +276,51 @@ function renderExpensesTable() {
   }
 }
 
-function renderExpenseCharts() {
-  if (!window.Chart) return;
+function renderCurrent() {
+  $("#curBalance").value = state.current.balance || "";
+  $("#curSavings").value = state.current.savings || "";
 
-  const occurredTotal = state.expenses.filter(e => !!e.occurred).reduce((a, e) => a + clamp0(e.amount), 0);
-  const pendingTotal = state.expenses.filter(e => !e.occurred).reduce((a, e) => a + clamp0(e.amount), 0);
+  $("#remainBalance").textContent = fmt(calcRemainBalanceMain());
+  $("#savingsAlwaysGreen").textContent = fmt(state.current.savings);
+  $("#personalBalance").textContent = fmt(calcPersonalBalance());
 
-  const serviceTotal = state.expenses.filter(e => e.kind === "Service").reduce((a, e) => a + clamp0(e.amount), 0);
-  const expenseTotal = state.expenses.filter(e => e.kind === "Expense").reduce((a, e) => a + clamp0(e.amount), 0);
+  // daily
+  const t = new Date().toDateString();
+  if (state.daily.lastUpdatedDate !== t) {
+    state.daily.lastUpdatedDate = t;
+    state.daily.updated = toNum(state.daily.base) || 10500;
+    scheduleSave();
+  }
 
-  if (chartOccur) chartOccur.destroy();
-  if (chartSvc) chartSvc.destroy();
+  $("#dailyBase").value = state.daily.base ?? 10500;
+  $("#dailyUpdated").textContent = fmt(state.daily.updated);
+  $("#workDaysRemain").textContent = String(workingDaysRemaining());
 
-  chartOccur = new Chart($("#chartOccur"), {
-    type: "doughnut",
-    data: {
-      labels: ["Occurred", "Pending"],
-      datasets: [{ data: [occurredTotal, pendingTotal] }]
-    },
-    options: { responsive: true, maintainAspectRatio: false }
+  const personal = calcPersonalBalance();
+  const wd = workingDaysRemaining();
+  $("#perDay").textContent = fmt(wd ? Math.floor(personal / wd) : 0);
+
+  const weekly = Math.max(0, personal - toNum(state.daily.updated));
+  $("#weeklyBalance").textContent = fmt(weekly);
+  $("#perWeek").textContent = fmt(Math.floor(weekly / 4));
+
+  // week plan
+  $$(".weekInput").forEach(inp => {
+    const w = inp.dataset.week;
+    inp.value = state.daily.weekPlan?.[w] ?? "";
   });
 
-  chartSvc = new Chart($("#chartSvc"), {
-    type: "doughnut",
-    data: {
-      labels: ["Services", "Expenses"],
-      datasets: [{ data: [serviceTotal, expenseTotal] }]
-    },
-    options: { responsive: true, maintainAspectRatio: false }
-  });
+  renderExpensesTable();
+  renderCharts();
 }
 
 /* ========= Notes & Docs ========= */
 let editingNoteId = null;
 
-function renderNotesDocs() {
-  // notes list
-  renderNotesList();
-  // docs list
-  renderDocsList();
-}
-
 function renderNotesList() {
-  const q = ($("#noteSearch").value || "").toLowerCase().trim();
+  const q = ($("#noteSearch")?.value || "").toLowerCase().trim();
   const list = $("#notesList");
+  if (!list) return;
   list.innerHTML = "";
 
   const notes = [...state.notes].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
@@ -403,6 +347,7 @@ function renderNotesList() {
 
 function renderDocsList() {
   const list = $("#docsList");
+  if (!list) return;
   list.innerHTML = "";
 
   const docs = [...state.docs].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -416,7 +361,7 @@ function renderDocsList() {
       </div>
       <div class="actions">
         <button class="btn ghost smallBtn" data-action="previewDoc" data-id="${d.id}">Preview</button>
-        <a class="btn ghost smallBtn" href="${escapeHtml(d.dataUrl || "")}" download="${escapeHtml(d.name || "file")}">Download</a>
+        ${d.url ? `<a class="btn ghost smallBtn" href="${escapeHtml(d.url)}" target="_blank" rel="noopener">Open</a>` : ""}
         <button class="btn danger smallBtn" data-action="delDoc" data-id="${d.id}">Delete</button>
       </div>
     `;
@@ -424,7 +369,17 @@ function renderDocsList() {
   }
 }
 
+function renderNotesDocs() {
+  renderNotesList();
+  renderDocsList();
+}
+
 /* ========= Water ========= */
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
 function ensureWaterDate() {
   const t = todayKey();
   if (state.water.lastDate !== t) {
@@ -437,9 +392,9 @@ function ensureWaterDate() {
 function renderWater() {
   ensureWaterDate();
 
-  $("#waterTargetL").value = (state.water.targetMl / 1000).toString();
-  const consumed = state.water.glasses * state.water.mlPerGlass;
-  const target = state.water.targetMl;
+  $("#waterTargetL").value = (toNum(state.water.targetMl) / 1000).toString();
+  const consumed = toNum(state.water.glasses) * toNum(state.water.mlPerGlass);
+  const target = toNum(state.water.targetMl);
 
   $("#waterConsumedText").textContent = `${consumed} ml`;
   const pct = target ? Math.min(100, Math.round((consumed / target) * 100)) : 0;
@@ -448,56 +403,62 @@ function renderWater() {
 
   $("#waterTrophy").hidden = !(consumed >= target && target > 0);
 
-  // glass grid 0..16
   const grid = $("#glassGrid");
   grid.innerHTML = "";
   for (let i = 1; i <= 16; i++) {
-    const g = document.createElement("button");
-    g.className = "glassBtn" + (i <= state.water.glasses ? " on" : "");
-    g.textContent = "💧";
-    g.title = `${i} glasses`;
-    g.addEventListener("click", () => {
+    const btn = document.createElement("button");
+    btn.className = "glassBtn" + (i <= toNum(state.water.glasses) ? " on" : "");
+    btn.textContent = "💧";
+    btn.title = `${i} glasses`;
+    btn.onclick = () => {
       state.water.glasses = i;
       scheduleSave();
       renderWater();
-    });
-    grid.appendChild(g);
+    };
+    grid.appendChild(btn);
   }
 }
 
-/* ========= Quran Quotes ========= */
-async function refreshQuotes() {
+/* ========= Quotes (Quran) ========= */
+async function fetchQuotes() {
   try {
-    const r = await fetch("/api/quotes", { method: "GET", cache: "no-store" });
-    const j = await r.json();
-    state.quotes.items = Array.isArray(j.items) ? j.items : [];
+    const r = await fetch("/api/quotes", { cache: "no-store" });
+    const data = await r.json();
+    state.quotes.items = data.items || [];
     scheduleSave();
-    renderQuotes();
   } catch {
-    alert("Could not fetch quotes. Check internet.");
+    state.quotes.items = [
+      { text: "Indeed, with hardship comes ease.", meta: "Quran 94:6" },
+      { text: "So remember Me; I will remember you.", meta: "Quran 2:152" },
+      { text: "Allah does not burden a soul beyond that it can bear.", meta: "Quran 2:286" },
+      { text: "And He is with you wherever you are.", meta: "Quran 57:4" }
+    ];
+    scheduleSave();
   }
+}
+
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function renderQuotes() {
   const list = $("#quoteList");
-  list.innerHTML = "";
+  if (!list) return;
 
-  if (!state.quotes.items || state.quotes.items.length === 0) {
+  list.innerHTML = "";
+  for (const q of state.quotes.items) {
     const div = document.createElement("div");
-    div.className = "quoteItem";
-    div.textContent = "No quotes yet. Tap refresh.";
+    div.className = "quoteCard";
+    div.innerHTML = `
+      <div style="font-weight:850">${escapeHtml(q.text)}</div>
+      <div class="small muted" style="margin-top:8px">${escapeHtml(q.meta || "")}</div>
+    `;
     list.appendChild(div);
-  } else {
-    for (const q of state.quotes.items) {
-      const div = document.createElement("div");
-      div.className = "quoteItem";
-      div.innerHTML = `
-        <div class="quoteAr">${escapeHtml(q.ar || "")}</div>
-        <div class="quoteEn">${escapeHtml(q.en || "")}</div>
-        <div class="meta">${escapeHtml(q.ref || "")}</div>
-      `;
-      list.appendChild(div);
-    }
   }
 
   $("#quoteReflection").value = state.quotes.reflection || "";
@@ -505,13 +466,6 @@ function renderQuotes() {
 
 /* ========= Focus ========= */
 let focusTimer = null;
-
-function renderFocus() {
-  updateFocusCountdown();
-  $("#focusMinutes").value = "";
-  $("#focusOverlay").hidden = !state.focus.overlay;
-  $("#focusOverlay").classList.toggle("hidden", !state.focus.overlay);
-}
 
 function updateFocusCountdown() {
   const el1 = $("#focusCountdown");
@@ -528,9 +482,7 @@ function updateFocusCountdown() {
   el1.textContent = `${mm}:${ss}`;
   el2.textContent = `${mm}:${ss}`;
 
-  if (leftMs <= 0) {
-    stopFocus(true);
-  }
+  if (leftMs <= 0) stopFocus(true);
 }
 
 function startFocus(mins) {
@@ -557,7 +509,14 @@ function stopFocus(done = false) {
   if (done) alert("Focus completed ✅");
 }
 
-/* ========= Plans (with map) ========= */
+function renderFocus() {
+  updateFocusCountdown();
+  $("#focusMinutes").value = "";
+  $("#focusOverlay").hidden = !state.focus.overlay;
+  $("#focusOverlay").classList.toggle("hidden", !state.focus.overlay);
+}
+
+/* ========= Plans (Map) ========= */
 let map = null;
 let mapMarker = null;
 
@@ -571,7 +530,7 @@ function initMap() {
     return;
   }
 
-  map = L.map("plansMap").setView([31.5204, 74.3587], 12); // default Lahore
+  map = L.map("plansMap").setView([31.5204, 74.3587], 12);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: "© OpenStreetMap"
@@ -621,6 +580,7 @@ async function searchPlace(q) {
 
 function renderPlans() {
   const list = $("#plansList");
+  if (!list) return;
   list.innerHTML = "";
 
   const items = [...state.plans.items].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -672,7 +632,7 @@ function ssRenderList(containerId, items, kind) {
       const div = document.createElement("div");
       div.className = "listItem";
       div.innerHTML = `
-        <div>
+        <div style="flex:1; min-width:0">
           <div style="font-weight:900">${i + 1}. ${escapeHtml(n.title || "")}</div>
           <div class="meta">${escapeHtml(n.source || "")}</div>
         </div>
@@ -689,7 +649,9 @@ function ssRenderList(containerId, items, kind) {
     items.forEach((q, i) => {
       const div = document.createElement("div");
       div.className = "listItem";
-      const ans = q.answer ? `<div class="meta" data-ss-ans="${i}" hidden><b>Answer:</b> ${escapeHtml(q.answer)}</div>` : "";
+      const ans = q.answer
+        ? `<div class="meta" data-ss-ans="${i}" hidden><b>Answer:</b> ${escapeHtml(q.answer)}</div>`
+        : "";
       div.innerHTML = `
         <div style="flex:1; min-width:0">
           <div style="font-weight:900">${i + 1}. ${escapeHtml(q.question || "")}</div>
@@ -709,7 +671,7 @@ function ssRenderList(containerId, items, kind) {
     const div = document.createElement("div");
     div.className = "listItem";
     div.innerHTML = `
-      <div>
+      <div style="flex:1; min-width:0">
         <div style="font-weight:900">${i + 1}. ${escapeHtml(x.text || "")}</div>
         ${x.meta ? `<div class="meta">${escapeHtml(x.meta)}</div>` : ""}
       </div>
@@ -828,14 +790,14 @@ function bindEvents() {
     }
     if (action === "applySpentToday") {
       const spent = Math.max(0, toNum($("#spentToday").value));
-      state.daily.updated = clamp0(state.daily.updated - spent);
+      state.daily.updated = Math.max(0, toNum(state.daily.updated) - spent);
       scheduleSave();
       renderCurrent();
       return;
     }
     if (action === "quickResetDay") {
       if (!confirm("Reset daily updated balance to base?")) return;
-      state.daily.updated = clamp0(state.daily.base);
+      state.daily.updated = Math.max(0, toNum(state.daily.base));
       scheduleSave();
       renderCurrent();
       return;
@@ -844,7 +806,7 @@ function bindEvents() {
     if (action === "addExpense") {
       const name = ($("#expName").value || "").trim();
       const notes = ($("#expNotes").value || "").trim();
-      const amount = clamp0($("#expAmount").value);
+      const amount = Math.max(0, toNum($("#expAmount").value));
       if (!name || amount <= 0) return alert("Enter name and amount");
 
       state.expenses.unshift({
@@ -868,7 +830,7 @@ function bindEvents() {
     if (action === "addService") {
       const name = ($("#svcName").value || "").trim();
       const notes = ($("#svcNotes").value || "").trim();
-      const amount = clamp0($("#svcAmount").value);
+      const amount = Math.max(0, toNum($("#svcAmount").value));
       if (!name || amount <= 0) return alert("Enter amount");
 
       state.expenses.unshift({
@@ -910,7 +872,7 @@ function bindEvents() {
       if (newAmt === null) return;
       item.name = (newName || "").trim();
       item.notes = (newNotes || "").trim();
-      item.amount = clamp0(newAmt);
+      item.amount = Math.max(0, toNum(newAmt));
       scheduleSave();
       renderCurrent();
       return;
@@ -937,7 +899,6 @@ function bindEvents() {
     if (action === "saveNote") {
       const title = ($("#noteTitle").value || "").trim();
       const body = ($("#noteBody").value || "").trim();
-
       if (!title && !body) return alert("Write something first");
 
       if (editingNoteId) {
@@ -985,15 +946,17 @@ function bindEvents() {
       return;
     }
 
+    // docs preview/delete
     if (action === "previewDoc") {
       const id = el.dataset.id;
       const d = state.docs.find(x => x.id === id);
       if (!d) return;
       const box = $("#docPreview");
-      if ((d.type || "").includes("pdf")) {
-        box.innerHTML = `<iframe src="${escapeHtml(d.dataUrl)}" style="width:100%; height:420px; border:0; border-radius:14px;"></iframe>`;
-      } else if ((d.type || "").startsWith("image/")) {
-        box.innerHTML = `<img src="${escapeHtml(d.dataUrl)}" alt="preview" style="width:100%; height:auto; border-radius:14px;" />`;
+      if (!box) return;
+      if (d.type?.includes("pdf")) {
+        box.innerHTML = `<iframe src="${escapeHtml(d.url)}" style="width:100%; height:420px; border:0; border-radius:14px;"></iframe>`;
+      } else if (d.type?.startsWith("image/")) {
+        box.innerHTML = `<img src="${escapeHtml(d.url)}" alt="preview" style="width:100%; height:auto; border-radius:14px;" />`;
       } else {
         box.textContent = "Preview not available.";
       }
@@ -1030,7 +993,7 @@ function bindEvents() {
 
     // quotes
     if (action === "refreshQuotes") {
-      refreshQuotes();
+      fetchQuotes().then(renderQuotes);
       return;
     }
 
@@ -1119,13 +1082,13 @@ function bindEvents() {
 
   // inputs
   $("#curBalance").addEventListener("input", () => {
-    state.current.balance = clamp0($("#curBalance").value);
+    state.current.balance = Math.max(0, toNum($("#curBalance").value));
     scheduleSave();
     renderCurrent();
   });
 
   $("#curSavings").addEventListener("input", () => {
-    state.current.savings = clamp0($("#curSavings").value);
+    state.current.savings = Math.max(0, toNum($("#curSavings").value));
     scheduleSave();
     renderCurrent();
   });
@@ -1138,38 +1101,7 @@ function bindEvents() {
     });
   });
 
-  $("#noteSearch").addEventListener("input", () => renderNotesList());
-
-  $("#docInput").addEventListener("change", async (e) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-
-    for (const f of files) {
-      await addDocFile(f);
-    }
-
-    e.target.value = "";
-    scheduleSave();
-    renderDocsList();
-  });
-}
-
-async function addDocFile(file) {
-  // convert to dataUrl for preview/offline
-  const dataUrl = await new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result);
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-
-  state.docs.unshift({
-    id: uid(),
-    name: file.name,
-    type: file.type || "application/octet-stream",
-    dataUrl,
-    createdAt: Date.now()
-  });
+  $("#noteSearch")?.addEventListener("input", () => renderNotesList());
 }
 
 /* ========= Init ========= */
@@ -1177,27 +1109,24 @@ async function init() {
   await detectRemote();
   await loadState();
 
-  // initial renders
   renderOverall();
   renderCurrent();
   renderNotesDocs();
   renderWater();
+  await fetchQuotes();
   renderQuotes();
   renderFocus();
   renderPlans();
 
   bindEvents();
 
-  // default tab
   setTab("overall");
 
-  // if focus running, resume timer
   if (state.focus.running && state.focus.endAt) {
     clearInterval(focusTimer);
     focusTimer = setInterval(updateFocusCountdown, 500);
   }
 
-  // auto refresh water date
   ensureWaterDate();
 }
 
