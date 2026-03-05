@@ -143,36 +143,23 @@ function setTab(tab) {
 
 /* ========= Finance Calculations ========= */
 function sumExpensesAll() {
-  return state.expenses.reduce((a, e) => a + toNum(e.amount), 0);
+  return state.expenses.reduce((s, e) => s + toNum(e.amount), 0);
 }
 function sumExpensesOccurred() {
-  return state.expenses.filter(e => !!e.occurred).reduce((a, e) => a + toNum(e.amount), 0);
+  return state.expenses.filter(e => !!e.occurred).reduce((s, e) => s + toNum(e.amount), 0);
 }
-function calcRemainBalanceMain() {
-  const bal = toNum(state.current.balance);
-  const occurred = sumExpensesOccurred();
-  return Math.max(0, bal - occurred);
+function calcRemain() {
+  // remain = balance - savings (savings always green but still subtract)
+  return Math.max(0, toNum(state.current.balance) - toNum(state.current.savings));
 }
-function calcPersonalBalance() {
-  const remain = Math.max(0, toNum(state.current.balance));
-  const totalAll = sumExpensesAll();
-  return Math.max(0, remain - totalAll);
+function calcPersonal() {
+  // Personal = Remain - (ALL expenses, pending+occurred)
+  return Math.max(0, calcRemain() - sumExpensesAll());
 }
-function workingDaysRemaining() {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0); // ✅ lock to local midnight
-
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  end.setHours(0, 0, 0, 0);
-
-  let count = 0;
-  for (let d = new Date(now); d <= end; d.setDate(d.getDate() + 1)) {
-    const day = d.getDay();
-    if (day !== 0 && day !== 6) count++; // Mon–Fri
-  }
-  return count; // ✅ includes today if weekday (this usually matches your old 19)
+function calcMainAfterOccurred() {
+  // main top subtract occurred expenses too
+  return Math.max(0, calcRemain() - sumExpensesOccurred());
 }
-
 /* ========= Overall ========= */
 let chartOverall = null;
 let chartMonthly = null;
@@ -1161,4 +1148,5 @@ async function init() {
 }
 
 init();
+
 
