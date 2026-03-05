@@ -1067,5 +1067,33 @@ body::before{
   text-align: center !important;
   width: 100% !important;
 }
+/* ===== Center alignment fixes ===== */
+
+/* Plans: Add Plan button row */
+#view-plans .row{
+justify-content:center !important;
+text-align:center;
+}
+
+/* Water tracker 250ml buttons */
+#glassGrid{
+display:flex;
+flex-wrap:wrap;
+justify-content:center;
+align-items:center;
+gap:8px;
+}
+
+/* Notes: Add + Search row */
+#view-notes .row{
+justify-content:center !important;
+text-align:center;
+}
+
+/* Ensure input groups center nicely */
+#view-notes input,
+#view-notes button{
+text-align:center;
+}
 
 
