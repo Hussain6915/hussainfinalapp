@@ -1018,5 +1018,14 @@ body::before{
   z-index: -1;
   animation: floatGlow 10s ease-in-out infinite;
 }
+/* Focus heading center fix */
+#view-focus h1,
+#view-focus h2,
+#view-focus h3,
+#view-focus .sectionTitle,
+#view-focus .title {
+  text-align: center;
+  width: 100%;
+}
 
 
