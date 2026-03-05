@@ -1027,5 +1027,45 @@ body::before{
   text-align: center;
   width: 100%;
 }
+/* ===== Focus Timer: keep overlay, center everything ===== */
+
+/* Center heading + top row inside Focus card */
+#view-focus .cardHead{
+  justify-content: center !important;
+  text-align: center !important;
+  width: 100% !important;
+}
+
+/* If your focus title is an h2/h3 inside the focus view, force it center */
+#view-focus h1,
+#view-focus h2,
+#view-focus h3{
+  text-align: center !important;
+  width: 100% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* Center the countdown number in normal view */
+#focusCountdown{
+  display: block;
+  text-align: center !important;
+  width: 100% !important;
+}
+
+/* Center overlay content (keep overlay working) */
+#focusOverlay{
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+/* Center overlay countdown */
+#focusCountdownOverlay{
+  display: block;
+  text-align: center !important;
+  width: 100% !important;
+}
 
 
