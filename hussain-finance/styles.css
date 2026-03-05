@@ -1095,5 +1095,58 @@ text-align:center;
 #view-notes button{
 text-align:center;
 }
+/* ===== Water Tracker (250ml per glass + Trophy) center alignment ===== */
+
+/* Center the whole Water view content blocks */
+#view-water .card,
+#view-water .cardBody,
+#view-water .section,
+#view-water .panel {
+  text-align: center;
+}
+
+/* Center rows inside Water view */
+#view-water .row,
+#view-water .actions,
+#view-water .btnRow,
+#view-water .controls {
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+/* Center the "250ml per glass" button group/grid */
+#view-water #glassGrid,
+#view-water .glassGrid,
+#view-water .glasses,
+#view-water .glassRow {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 10px !important;
+  width: 100% !important;
+}
+
+/* Ensure individual glass buttons don't push layout sideways */
+#view-water #glassGrid button,
+#view-water .glassGrid button,
+#view-water .glasses button,
+#view-water .glassRow button,
+#view-water .glassBtn {
+  margin: 0 !important;
+}
+
+/* Center trophy area (when reached) */
+#view-water .trophy,
+#view-water .trophyRow,
+#view-water #trophyRow,
+#view-water #trophy,
+#view-water .reward {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  text-align: center !important;
+  width: 100% !important;
+}
 
 
