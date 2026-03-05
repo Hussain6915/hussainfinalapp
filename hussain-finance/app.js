@@ -172,11 +172,6 @@ function calcMainAfterOccurred() {
   const occurred = sumExpensesOccurred();
   return Math.max(0, remain - occurred);
 }
-/* Daily Balance helper */
-function getDailyBalance() {
-  if (!state || !state.current) return 0;
-  return toNum(state.current.daily);
-}
 
 function workingDaysRemaining() {
   const now = new Date();
@@ -320,9 +315,9 @@ function renderCurrent() {
   $("#dailyUpdated").textContent = fmt(state.daily.updated);
   $("#workDaysRemain").textContent = String(workingDaysRemaining());
 
-  const daily = getDailyBalance();
+ const personal = calcPersonalBalance();
 const wd = workingDaysRemaining();
-$("#perDay").textContent = fmt(wd ? Math.floor(daily / wd) : 0);
+$("#perDay").textContent = fmt(wd ? Math.floor(personal / wd) : 0);
 
   const weekly = Math.max(0, personal - toNum(state.daily.updated));
   $("#weeklyBalance").textContent = fmt(weekly);
@@ -1181,6 +1176,7 @@ async function init() {
 }
 
 init();
+
 
 
 
