@@ -145,19 +145,34 @@ function setTab(tab) {
 function sumExpensesAll() {
   return state.expenses.reduce((a, e) => a + toNum(e.amount), 0);
 }
+
 function sumExpensesOccurred() {
-  return state.expenses.filter(e => !!e.occurred).reduce((a, e) => a + toNum(e.amount), 0);
+  return state.expenses
+    .filter(e => !!e.occurred)
+    .reduce((a, e) => a + toNum(e.amount), 0);
 }
+
+/* Remain Balance = Balance - Savings */
 function calcRemainBalanceMain() {
   const bal = toNum(state.current.balance);
-  const occurred = sumExpensesOccurred();
-  return Math.max(0, bal - occurred);
+  const sav = toNum(state.current.savings);
+  return Math.max(0, bal - sav);
 }
+
+/* Personal Balance = (Balance - Savings) - All expenses */
 function calcPersonalBalance() {
-  const remain = Math.max(0, toNum(state.current.balance));
+  const remain = calcRemainBalanceMain();
   const totalAll = sumExpensesAll();
   return Math.max(0, remain - totalAll);
 }
+
+/* Optional: Main balance after occurred expenses */
+function calcMainAfterOccurred() {
+  const remain = calcRemainBalanceMain();
+  const occurred = sumExpensesOccurred();
+  return Math.max(0, remain - occurred);
+}
+
 function workingDaysRemaining() {
   const now = new Date();
   now.setHours(0, 0, 0, 0); // ✅ lock to local midnight
@@ -1161,4 +1176,5 @@ async function init() {
 }
 
 init();
+
 
