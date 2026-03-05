@@ -13,14 +13,64 @@ let USE_REMOTE = false;
 let saveTimer = null;
 
 /* ========= Helpers ========= */
-const uid = () => Math.random().toString(16).slice(2) + "-" + Date.now().toString(16);
-const toNum = (v) => {
-  const n = Number(String(v ?? "").replaceAll(",", "").trim());
-  return Number.isFinite(n) ? n : 0;
-};
-const fmt = (n) => Number(n || 0).toLocaleString();
+const uid = () => Math.random().toString(16).slice(2) + Date.now().toString(16);
 
-/* ========= Default State ========= */
+function toNum(v) {
+  const n = Number(String(v ?? "").replaceAll(",", ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function fmt(n) {
+  const x = Math.round(toNum(n));
+  return x.toLocaleString();
+}
+
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function isSameDay(a, b) {
+  if (!a || !b) return false;
+  const da = new Date(a);
+  const db = new Date(b);
+  return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+}
+
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+function clamp0(n) {
+  return Math.max(0, toNum(n));
+}
+
+function startOfMonth(d = new Date()) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+function endOfMonth(d = new Date()) {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+}
+
+function workingDaysRemaining() {
+  // remaining working days incl today (Mon-Fri)
+  const now = new Date();
+  const end = endOfMonth(now);
+  let count = 0;
+  for (let d = new Date(now); d <= end; d.setDate(d.getDate() + 1)) {
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) count++;
+  }
+  return count;
+}
+
+/* ========= State ========= */
 const state = {
   overall: { current: 0, savings: 0, monthly: 0 },
   current: { balance: 0, savings: 0 },
@@ -37,13 +87,25 @@ const state = {
   water: { targetMl: 3000, glasses: 0, mlPerGlass: 250, lastDate: null },
   quotes: { items: [], reflection: "" },
   focus: { running: false, endAt: null, overlay: false },
-  plans: { items: [], pin: null } // pin:{lat,lng,label}
+  plans: { items: [], pin: null }, // pin:{lat,lng,label}
+
+  // Sup' Sain module (lightweight, no keys)
+  supsain: {
+    news: [],
+    doy: [],
+    islam: [],
+    quiz: [],
+    innov: [],
+    weekend: [],
+    biz: [],
+    jokes: []
+  }
 };
 
 /* ========= Remote Sync ========= */
 async function detectRemote() {
   try {
-    const r = await fetch("/api/state", { cache: "no-store" });
+    const r = await fetch("/api/state", { method: "GET" });
     USE_REMOTE = r.ok;
   } catch {
     USE_REMOTE = false;
@@ -51,49 +113,72 @@ async function detectRemote() {
 }
 
 async function loadState() {
+  // try remote
   if (USE_REMOTE) {
     try {
-      const r = await fetch("/api/state", { cache: "no-store" });
+      const r = await fetch("/api/state", { method: "GET" });
       if (r.ok) {
-        const data = await r.json();
-        deepMerge(state, data);
+        const j = await r.json();
+        if (j?.state) mergeState(j.state);
         return;
       }
     } catch {}
   }
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (raw) deepMerge(state, JSON.parse(raw));
+
+  // local fallback
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) mergeState(JSON.parse(raw));
+  } catch {}
 }
 
-function scheduleSave() {
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(saveState, 250);
+function mergeState(s) {
+  if (!s || typeof s !== "object") return;
+
+  // shallow merge carefully
+  if (s.overall) Object.assign(state.overall, s.overall);
+  if (s.current) Object.assign(state.current, s.current);
+  if (s.daily) {
+    Object.assign(state.daily, s.daily);
+    if (!state.daily.weekPlan) state.daily.weekPlan = { 1: "", 2: "", 3: "", 4: "" };
+  }
+
+  if (Array.isArray(s.expenses)) state.expenses = s.expenses;
+  if (Array.isArray(s.notes)) state.notes = s.notes;
+  if (Array.isArray(s.docs)) state.docs = s.docs;
+
+  if (s.water) Object.assign(state.water, s.water);
+  if (s.quotes) Object.assign(state.quotes, s.quotes);
+  if (s.focus) Object.assign(state.focus, s.focus);
+  if (s.plans) Object.assign(state.plans, s.plans);
+
+  if (s.supsain) Object.assign(state.supsain, s.supsain);
+
+  // safety defaults
+  if (!state.water.mlPerGlass) state.water.mlPerGlass = 250;
+  if (!state.water.targetMl) state.water.targetMl = 3000;
 }
 
 async function saveState() {
-  // local fallback always
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  const payload = JSON.stringify(state);
+
+  // local always
+  try { localStorage.setItem(STORAGE_KEY, payload); } catch {}
 
   if (!USE_REMOTE) return;
+
   try {
     await fetch("/api/state", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(state)
+      body: JSON.stringify({ state })
     });
   } catch {}
 }
 
-function deepMerge(target, src) {
-  if (!src || typeof src !== "object") return;
-  for (const k of Object.keys(src)) {
-    const sv = src[k];
-    if (Array.isArray(sv)) target[k] = sv;
-    else if (sv && typeof sv === "object") {
-      if (!target[k] || typeof target[k] !== "object") target[k] = {};
-      deepMerge(target[k], sv);
-    } else target[k] = sv;
-  }
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveState, 400);
 }
 
 /* ========= Tabs ========= */
@@ -113,398 +198,306 @@ function setTab(tab) {
     setTimeout(initMap, 50);
     renderPlans();
   }
+  if (tab === "supsain") renderSupSain();
 }
 
-/* ========= Finance Calculations ========= */
-function sumExpensesAll() {
-  return state.expenses.reduce((s, e) => s + toNum(e.amount), 0);
-}
-function sumExpensesOccurred() {
-  return state.expenses.filter(e => !!e.occurred).reduce((s, e) => s + toNum(e.amount), 0);
-}
-function calcRemain() {
-  // remain = balance - savings (savings always green but still subtract)
-  return Math.max(0, toNum(state.current.balance) - toNum(state.current.savings));
-}
-function calcPersonal() {
-  // Personal = Remain - (ALL expenses, pending+occurred)
-  return Math.max(0, calcRemain() - sumExpensesAll());
-}
-function calcMainAfterOccurred() {
-  // main top subtract occurred expenses too
-  return Math.max(0, calcRemain() - sumExpensesOccurred());
-}
-
-/* ========= Overall Render ========= */
-let chartOverall, chartMonthly, chartOccur, chartSvc;
+/* ========= Overall ========= */
+let chartOverall = null;
+let chartMonthly = null;
 
 function renderOverall() {
   $("#overallCurrentValue").textContent = fmt(state.overall.current);
   $("#overallSavingsValue").textContent = fmt(state.overall.savings);
   $("#overallMonthlyValue").textContent = fmt(state.overall.monthly);
-  renderCharts();
-}
 
-function renderCharts() {
-  if (!window.Chart) return;
+  // charts
+  if (window.Chart) {
+    const ctx1 = $("#chartOverall");
+    const ctx2 = $("#chartMonthly");
 
-  const ov = [toNum(state.overall.current), toNum(state.overall.savings)];
-  const m = [toNum(state.overall.monthly), toNum(state.overall.current), toNum(state.overall.savings)];
+    const data1 = {
+      labels: ["Current", "Savings"],
+      datasets: [{ label: "Amount", data: [state.overall.current, state.overall.savings] }]
+    };
 
-  // Overall
-  const c1 = $("#chartOverall");
-  if (c1) {
-    chartOverall?.destroy();
-    chartOverall = new Chart(c1, {
-      type: "doughnut",
-      data: {
-        labels: ["Current", "Savings"],
-        datasets: [{ data: ov }]
-      },
-      options: {
-        responsive: true,
-        plugins: { legend: { position: "bottom" } }
-      }
-    });
-  }
+    const data2 = {
+      labels: ["Monthly", "Current", "Savings"],
+      datasets: [{ label: "Amount", data: [state.overall.monthly, state.overall.current, state.overall.savings] }]
+    };
 
-  // Monthly
-  const c2 = $("#chartMonthly");
-  if (c2) {
-    chartMonthly?.destroy();
-    chartMonthly = new Chart(c2, {
+    if (chartOverall) chartOverall.destroy();
+    if (chartMonthly) chartMonthly.destroy();
+
+    chartOverall = new Chart(ctx1, {
       type: "bar",
-      data: {
-        labels: ["Monthly", "Current", "Savings"],
-        datasets: [{ label: "Overall", data: m }]
-      },
-      options: {
-        responsive: true,
-        plugins: { legend: { position: "bottom" } }
-      }
+      data: data1,
+      options: { responsive: true, maintainAspectRatio: false }
     });
-  }
 
-  // Current tab charts
-  const c3 = $("#chartOccur");
-  if (c3) {
-    const occurred = sumExpensesOccurred();
-    const pending = Math.max(0, sumExpensesAll() - occurred);
-    chartOccur?.destroy();
-    chartOccur = new Chart(c3, {
+    chartMonthly = new Chart(ctx2, {
       type: "bar",
-      data: {
-        labels: ["Occurred", "Pending"],
-        datasets: [{ label: "Amount", data: [occurred, pending] }]
-      },
-      options: { responsive: true, plugins: { legend: { position: "bottom" } } }
-    });
-  }
-
-  const c4 = $("#chartSvc");
-  if (c4) {
-    const svc = state.expenses.filter(e => e.kind === "Service").reduce((s, e) => s + toNum(e.amount), 0);
-    const exp = state.expenses.filter(e => e.kind === "Expense").reduce((s, e) => s + toNum(e.amount), 0);
-    chartSvc?.destroy();
-    chartSvc = new Chart(c4, {
-      type: "bar",
-      data: {
-        labels: ["Services", "Expenses"],
-        datasets: [{ label: "Amount", data: [svc, exp] }]
-      },
-      options: { responsive: true, plugins: { legend: { position: "bottom" } } }
+      data: data2,
+      options: { responsive: true, maintainAspectRatio: false }
     });
   }
 }
 
-/* ========= Current Render ========= */
+/* ========= Current Finance ========= */
+let chartOccur = null;
+let chartSvc = null;
+
+function calcPersonalBalance() {
+  // Personal = remain balance - all expenses (pending+occurred)
+  const remain = clamp0(state.current.balance);
+  const totalAll = state.expenses.reduce((a, e) => a + clamp0(e.amount), 0);
+  return clamp0(remain - totalAll);
+}
+
+function calcRemainBalanceMain() {
+  // remain = balance - occurred expenses only
+  const bal = clamp0(state.current.balance);
+  const occurredTotal = state.expenses.filter(e => !!e.occurred).reduce((a, e) => a + clamp0(e.amount), 0);
+  return clamp0(bal - occurredTotal);
+}
+
 function renderCurrent() {
   // inputs
   $("#curBalance").value = state.current.balance || "";
   $("#curSavings").value = state.current.savings || "";
 
-  // remain + savings
-  $("#remainBalance").textContent = fmt(calcRemain());
+  // remain & savings always green
+  const remain = calcRemainBalanceMain();
+  $("#remainBalance").textContent = fmt(remain);
   $("#savingsAlwaysGreen").textContent = fmt(state.current.savings);
 
-  // Personal
-  $("#personalBalance").textContent = fmt(calcPersonal());
+  // personal
+  const personal = calcPersonalBalance();
+  $("#personalBalance").textContent = fmt(personal);
 
-  // Daily
-  $("#dailyBase").value = state.daily.base || "";
+  // daily base / spent today
+  $("#dailyBase").value = state.daily.base ?? 10500;
+  $("#spentToday").value = "";
+
+  // recompute working days remaining
+  state.daily.workingDaysRemaining = workingDaysRemaining();
+  $("#workDaysRemain").textContent = String(state.daily.workingDaysRemaining ?? "—");
+
+  // ensure daily updated at least base
+  if (!Number.isFinite(toNum(state.daily.updated)) || state.daily.updated <= 0) {
+    state.daily.updated = clamp0(state.daily.base);
+  }
   $("#dailyUpdated").textContent = fmt(state.daily.updated);
 
-  const wdr = getWorkingDaysRemaining();
-  $("#workDaysRemain").textContent = String(wdr);
-  const perDay = wdr > 0 ? Math.floor(toNum(state.daily.updated) / wdr) : 0;
+  const perDay = state.daily.workingDaysRemaining ? Math.floor(personal / state.daily.workingDaysRemaining) : 0;
   $("#perDay").textContent = fmt(perDay);
 
-  // Weekly
-  const weeklyBalance = Math.max(0, calcPersonal() - toNum(state.daily.updated));
-  $("#weeklyBalance").textContent = fmt(weeklyBalance);
-  const perWeek = Math.floor(weeklyBalance / 4);
+  const weekly = clamp0(personal - state.daily.updated);
+  $("#weeklyBalance").textContent = fmt(weekly);
+  const perWeek = Math.floor(weekly / 4);
   $("#perWeek").textContent = fmt(perWeek);
 
-  // week plan inputs
+  // week plan
   $$(".weekInput").forEach(inp => {
     const w = inp.dataset.week;
     inp.value = state.daily.weekPlan?.[w] ?? "";
   });
 
-  // expenses list
-  renderExpenses();
-  renderCharts();
+  // expenses list + charts
+  renderExpensesTable();
+  renderExpenseCharts();
 }
 
-/* Working days remaining (Mon-Fri) from today to month end */
-function getWorkingDaysRemaining() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-
-  const start = new Date(year, month, now.getDate()); // today
-  const end = new Date(year, month + 1, 0); // last day of month
-
-  let count = 0;
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const day = d.getDay();
-    if (day !== 0 && day !== 6) count++;
-  }
-  return count;
-}
-
-/* ========= Expenses ========= */
-function addExpense(kind, name, notes, amount) {
-  const amt = Math.max(0, toNum(amount));
-  if (!name || !amt) return;
-
-  state.expenses.unshift({
-    id: uid(),
-    kind,
-    name,
-    notes: notes || "",
-    amount: amt,
-    occurred: false,
-    createdAt: new Date().toISOString()
-  });
-
-  scheduleSave();
-  renderCurrent();
-}
-
-function renderExpenses() {
+function renderExpensesTable() {
   const tb = $("#expensesTbody");
-  if (!tb) return;
-
   tb.innerHTML = "";
 
   for (const e of state.expenses) {
     const tr = document.createElement("tr");
-
     tr.innerHTML = `
-      <td><input type="checkbox" ${e.occurred ? "checked" : ""} data-action="toggleOccur" data-id="${e.id}" /></td>
-      <td><span class="chip">${e.kind}</span></td>
-      <td><input value="${escapeHtml(e.name)}" data-action="editExp" data-field="name" data-id="${e.id}" /></td>
-      <td><input value="${escapeHtml(e.notes || "")}" data-action="editExp" data-field="notes" data-id="${e.id}" /></td>
-      <td><input inputmode="numeric" value="${escapeHtml(String(e.amount))}" data-action="editExp" data-field="amount" data-id="${e.id}" /></td>
+      <td>
+        <label class="switch">
+          <input type="checkbox" data-action="toggleOccurred" data-id="${e.id}" ${e.occurred ? "checked" : ""}/>
+          <span class="slider"></span>
+        </label>
+      </td>
+      <td>${escapeHtml(e.kind)}</td>
+      <td>${escapeHtml(e.name)}</td>
+      <td>${escapeHtml(e.notes || "")}</td>
+      <td>${fmt(e.amount)}</td>
       <td class="right">
-        <div class="tableActions">
-          <button class="btn ghost smallBtn" data-action="updateExp" data-id="${e.id}">Update</button>
-          <button class="smallBtn danger" data-action="delExp" data-id="${e.id}">Delete</button>
-        </div>
+        <button class="btn ghost smallBtn" data-action="editExpense" data-id="${e.id}">Edit</button>
+        <button class="btn danger smallBtn" data-action="delExpense" data-id="${e.id}">Delete</button>
       </td>
     `;
-
     tb.appendChild(tr);
   }
 }
 
-function escapeHtml(s) {
-  return String(s ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+function renderExpenseCharts() {
+  if (!window.Chart) return;
+
+  const occurredTotal = state.expenses.filter(e => !!e.occurred).reduce((a, e) => a + clamp0(e.amount), 0);
+  const pendingTotal = state.expenses.filter(e => !e.occurred).reduce((a, e) => a + clamp0(e.amount), 0);
+
+  const serviceTotal = state.expenses.filter(e => e.kind === "Service").reduce((a, e) => a + clamp0(e.amount), 0);
+  const expenseTotal = state.expenses.filter(e => e.kind === "Expense").reduce((a, e) => a + clamp0(e.amount), 0);
+
+  if (chartOccur) chartOccur.destroy();
+  if (chartSvc) chartSvc.destroy();
+
+  chartOccur = new Chart($("#chartOccur"), {
+    type: "doughnut",
+    data: {
+      labels: ["Occurred", "Pending"],
+      datasets: [{ data: [occurredTotal, pendingTotal] }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+
+  chartSvc = new Chart($("#chartSvc"), {
+    type: "doughnut",
+    data: {
+      labels: ["Services", "Expenses"],
+      datasets: [{ data: [serviceTotal, expenseTotal] }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
 }
 
-/* ========= Notes ========= */
+/* ========= Notes & Docs ========= */
 let editingNoteId = null;
 
 function renderNotesDocs() {
+  // notes list
   renderNotesList();
+  // docs list
   renderDocsList();
 }
 
 function renderNotesList() {
-  const list = $("#notesList");
-  if (!list) return;
-
   const q = ($("#noteSearch").value || "").toLowerCase().trim();
-  const items = state.notes
-    .slice()
-    .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""))
-    .filter(n => !q || (n.title + " " + n.body).toLowerCase().includes(q));
-
+  const list = $("#notesList");
   list.innerHTML = "";
-  for (const n of items) {
+
+  const notes = [...state.notes].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const filtered = q
+    ? notes.filter(n => (n.title || "").toLowerCase().includes(q) || (n.body || "").toLowerCase().includes(q))
+    : notes;
+
+  for (const n of filtered) {
     const div = document.createElement("div");
     div.className = "listItem";
     div.innerHTML = `
-      <div>
-        <div style="font-weight:900">${escapeHtml(n.title || "Untitled")}</div>
-        <div class="meta">${new Date(n.updatedAt).toLocaleString()}</div>
+      <div style="flex:1; min-width:0">
+        <div style="font-weight:900">${escapeHtml(n.title || "(Untitled)")}</div>
+        <div class="meta">${escapeHtml((n.body || "").slice(0, 90))}${(n.body || "").length > 90 ? "…" : ""}</div>
       </div>
       <div class="actions">
         <button class="btn ghost smallBtn" data-action="editNote" data-id="${n.id}">Edit</button>
-        <button class="smallBtn danger" data-action="delNote" data-id="${n.id}">Delete</button>
+        <button class="btn danger smallBtn" data-action="delNote" data-id="${n.id}">Delete</button>
       </div>
     `;
     list.appendChild(div);
   }
-}
-
-/* ========= Docs (image/pdf via dataUrl) ========= */
-let selectedDocId = null;
-
-async function addDocsFromInput(files) {
-  const arr = Array.from(files || []);
-  for (const f of arr) {
-    if (!f) continue;
-    const dataUrl = await fileToDataUrl(f);
-    state.docs.unshift({
-      id: uid(),
-      name: f.name,
-      type: f.type,
-      dataUrl,
-      createdAt: new Date().toISOString()
-    });
-  }
-  scheduleSave();
-  renderDocsList();
-}
-
-function fileToDataUrl(file) {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(String(r.result));
-    r.onerror = rej;
-    r.readAsDataURL(file);
-  });
 }
 
 function renderDocsList() {
   const list = $("#docsList");
-  if (!list) return;
-
   list.innerHTML = "";
-  for (const d of state.docs) {
+
+  const docs = [...state.docs].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  for (const d of docs) {
     const div = document.createElement("div");
     div.className = "listItem";
     div.innerHTML = `
-      <div>
-        <div style="font-weight:900">${escapeHtml(d.name)}</div>
-        <div class="meta">${new Date(d.createdAt).toLocaleString()}</div>
+      <div style="flex:1; min-width:0">
+        <div style="font-weight:900">${escapeHtml(d.name || "file")}</div>
+        <div class="meta">${escapeHtml(d.type || "")}</div>
       </div>
       <div class="actions">
         <button class="btn ghost smallBtn" data-action="previewDoc" data-id="${d.id}">Preview</button>
-        <a class="btn ghost smallBtn" href="${d.dataUrl}" download="${escapeHtml(d.name)}">Download</a>
-        <button class="smallBtn danger" data-action="delDoc" data-id="${d.id}">Delete</button>
+        <a class="btn ghost smallBtn" href="${escapeHtml(d.dataUrl || "")}" download="${escapeHtml(d.name || "file")}">Download</a>
+        <button class="btn danger smallBtn" data-action="delDoc" data-id="${d.id}">Delete</button>
       </div>
     `;
     list.appendChild(div);
-  }
-
-  // keep preview
-  if (selectedDocId) previewDoc(selectedDocId);
-}
-
-function previewDoc(id) {
-  selectedDocId = id;
-  const box = $("#docPreview");
-  const d = state.docs.find(x => x.id === id);
-  if (!box || !d) return;
-
-  if (d.type === "application/pdf") {
-    box.innerHTML = `<iframe src="${d.dataUrl}" title="PDF preview"></iframe>`;
-  } else if (d.type.startsWith("image/")) {
-    box.innerHTML = `<img src="${d.dataUrl}" alt="Preview" />`;
-  } else {
-    box.textContent = "Preview not supported for this file type.";
   }
 }
 
 /* ========= Water ========= */
-function todayKey() {
-  return new Date().toISOString().slice(0, 10);
-}
-function ensureWaterReset() {
-  if (state.water.lastDate !== todayKey()) {
-    state.water.lastDate = todayKey();
+function ensureWaterDate() {
+  const t = todayKey();
+  if (state.water.lastDate !== t) {
+    state.water.lastDate = t;
     state.water.glasses = 0;
+    scheduleSave();
   }
 }
-function renderWater() {
-  ensureWaterReset();
 
-  const consumed = state.water.glasses * state.water.mlPerGlass;
-  const pct = state.water.targetMl > 0 ? Math.min(100, Math.round((consumed / state.water.targetMl) * 100)) : 0;
+function renderWater() {
+  ensureWaterDate();
 
   $("#waterTargetL").value = (state.water.targetMl / 1000).toString();
-  $("#waterConsumedText").textContent = `${consumed} ml`;
-  $("#waterProgressText").textContent = `${pct}%`;
-  $("#waterFill").style.width = pct + "%";
-  $("#waterTrophy").hidden = consumed < state.water.targetMl;
+  const consumed = state.water.glasses * state.water.mlPerGlass;
+  const target = state.water.targetMl;
 
+  $("#waterConsumedText").textContent = `${consumed} ml`;
+  const pct = target ? Math.min(100, Math.round((consumed / target) * 100)) : 0;
+  $("#waterProgressText").textContent = `${pct}%`;
+  $("#waterFill").style.width = `${pct}%`;
+
+  $("#waterTrophy").hidden = !(consumed >= target && target > 0);
+
+  // glass grid 0..16
   const grid = $("#glassGrid");
   grid.innerHTML = "";
-  const totalGlasses = Math.ceil(state.water.targetMl / state.water.mlPerGlass);
-
-  for (let i = 1; i <= totalGlasses; i++) {
-    const btn = document.createElement("button");
-    btn.className = "glassBtn" + (i <= state.water.glasses ? " active" : "");
-    btn.textContent = "🥛";
-    btn.onclick = () => {
+  for (let i = 1; i <= 16; i++) {
+    const g = document.createElement("button");
+    g.className = "glassBtn" + (i <= state.water.glasses ? " on" : "");
+    g.textContent = "💧";
+    g.title = `${i} glasses`;
+    g.addEventListener("click", () => {
       state.water.glasses = i;
       scheduleSave();
       renderWater();
-    };
-    grid.appendChild(btn);
+    });
+    grid.appendChild(g);
   }
 }
 
-/* ========= Quotes (Quran) ========= */
-async function fetchQuotes() {
+/* ========= Quran Quotes ========= */
+async function refreshQuotes() {
   try {
-    const r = await fetch("/api/quotes", { cache: "no-store" });
-    const data = await r.json();
-    state.quotes.items = data.items || [];
+    const r = await fetch("/api/quotes", { method: "GET", cache: "no-store" });
+    const j = await r.json();
+    state.quotes.items = Array.isArray(j.items) ? j.items : [];
     scheduleSave();
+    renderQuotes();
   } catch {
-    // fallback simple
-    state.quotes.items = [
-      { text: "Indeed, with hardship comes ease.", meta: "Quran 94:6" },
-      { text: "So remember Me; I will remember you.", meta: "Quran 2:152" },
-      { text: "Allah does not burden a soul beyond that it can bear.", meta: "Quran 2:286" },
-      { text: "And He is with you wherever you are.", meta: "Quran 57:4" }
-    ];
+    alert("Could not fetch quotes. Check internet.");
   }
-  renderQuotes();
 }
 
 function renderQuotes() {
   const list = $("#quoteList");
-  if (!list) return;
-
   list.innerHTML = "";
-  for (const q of state.quotes.items) {
+
+  if (!state.quotes.items || state.quotes.items.length === 0) {
     const div = document.createElement("div");
-    div.className = "quoteCard";
-    div.innerHTML = `
-      <div style="font-weight:850">${escapeHtml(q.text)}</div>
-      <div class="small muted" style="margin-top:8px">${escapeHtml(q.meta || "")}</div>
-    `;
+    div.className = "quoteItem";
+    div.textContent = "No quotes yet. Tap refresh.";
     list.appendChild(div);
+  } else {
+    for (const q of state.quotes.items) {
+      const div = document.createElement("div");
+      div.className = "quoteItem";
+      div.innerHTML = `
+        <div class="quoteAr">${escapeHtml(q.ar || "")}</div>
+        <div class="quoteEn">${escapeHtml(q.en || "")}</div>
+        <div class="meta">${escapeHtml(q.ref || "")}</div>
+      `;
+      list.appendChild(div);
+    }
   }
 
   $("#quoteReflection").value = state.quotes.reflection || "";
@@ -514,127 +507,265 @@ function renderQuotes() {
 let focusTimer = null;
 
 function renderFocus() {
-  const left = state.focus.endAt ? Math.max(0, state.focus.endAt - Date.now()) : 0;
-  const mins = Math.floor(left / 60000);
-  const secs = Math.floor((left % 60000) / 1000);
-  const txt = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  updateFocusCountdown();
+  $("#focusMinutes").value = "";
+  $("#focusOverlay").hidden = !state.focus.overlay;
+  $("#focusOverlay").classList.toggle("hidden", !state.focus.overlay);
+}
 
-  $("#focusCountdown").textContent = txt;
-  $("#focusCountdownOverlay").textContent = txt;
-
-  const ov = $("#focusOverlay");
-  if (ov) {
-    ov.classList.toggle("hidden", !state.focus.overlay);
-    ov.hidden = !state.focus.overlay;
+function updateFocusCountdown() {
+  const el1 = $("#focusCountdown");
+  const el2 = $("#focusCountdownOverlay");
+  if (!state.focus.running || !state.focus.endAt) {
+    el1.textContent = "00:00";
+    el2.textContent = "00:00";
+    return;
   }
+  const leftMs = Math.max(0, state.focus.endAt - Date.now());
+  const totalSec = Math.ceil(leftMs / 1000);
+  const mm = String(Math.floor(totalSec / 60)).padStart(2, "0");
+  const ss = String(totalSec % 60).padStart(2, "0");
+  el1.textContent = `${mm}:${ss}`;
+  el2.textContent = `${mm}:${ss}`;
 
-  // stop timer at 0
-  if (state.focus.running && left <= 0) {
+  if (leftMs <= 0) {
     stopFocus(true);
-    alert("Focus complete ✅");
   }
 }
 
-function startFocus(minutes) {
-  const m = Math.max(1, toNum(minutes));
+function startFocus(mins) {
+  const m = Math.max(1, Math.floor(toNum(mins)));
   state.focus.running = true;
-  state.focus.endAt = Date.now() + m * 60000;
+  state.focus.endAt = Date.now() + m * 60 * 1000;
   state.focus.overlay = true;
   scheduleSave();
-
-  if (!focusTimer) {
-    focusTimer = setInterval(() => {
-      renderFocus();
-      scheduleSave();
-    }, 500);
-  }
   renderFocus();
+
+  clearInterval(focusTimer);
+  focusTimer = setInterval(updateFocusCountdown, 500);
 }
 
-function stopFocus(silent) {
+function stopFocus(done = false) {
   state.focus.running = false;
   state.focus.endAt = null;
-  state.focus.overlay = false;
   scheduleSave();
-
-  if (focusTimer) {
-    clearInterval(focusTimer);
-    focusTimer = null;
-  }
   renderFocus();
-  if (!silent) alert("Stopped.");
+
+  clearInterval(focusTimer);
+  focusTimer = null;
+
+  if (done) alert("Focus completed ✅");
 }
 
-/* ========= Plans + Map ========= */
-let map, marker;
+/* ========= Plans (with map) ========= */
+let map = null;
+let mapMarker = null;
 
 function initMap() {
-  if (map || !window.L) return;
+  if (!window.L) return;
+  const box = $("#plansMap");
+  if (!box) return;
 
-  map = L.map("plansMap").setView([24.8607, 67.0011], 11); // Karachi default
+  if (map) {
+    setTimeout(() => map.invalidateSize(), 100);
+    return;
+  }
+
+  map = L.map("plansMap").setView([31.5204, 74.3587], 12); // default Lahore
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap"
+    maxZoom: 19,
+    attribution: "© OpenStreetMap"
   }).addTo(map);
 
   map.on("click", (e) => {
-    state.plans.pin = { lat: e.latlng.lat, lng: e.latlng.lng, label: "Pinned" };
-    placeMarker();
+    const { lat, lng } = e.latlng;
+    state.plans.pin = { lat, lng, label: "Pinned location" };
     scheduleSave();
+    renderPlans();
+    setMarker(lat, lng);
   });
 
-  placeMarker();
-}
-
-function placeMarker() {
-  if (!map) return;
-  if (!state.plans.pin) {
-    if (marker) { map.removeLayer(marker); marker = null; }
-    return;
+  if (state.plans.pin?.lat && state.plans.pin?.lng) {
+    setMarker(state.plans.pin.lat, state.plans.pin.lng);
+    map.setView([state.plans.pin.lat, state.plans.pin.lng], 13);
   }
-  const { lat, lng } = state.plans.pin;
-  if (!marker) marker = L.marker([lat, lng]).addTo(map);
-  marker.setLatLng([lat, lng]);
-  map.setView([lat, lng], Math.max(map.getZoom(), 13));
 }
 
-async function searchMapPlace(q) {
-  const query = (q || "").trim();
-  if (!query) return;
+function setMarker(lat, lng) {
+  if (!map) return;
+  if (mapMarker) mapMarker.remove();
+  mapMarker = L.marker([lat, lng]).addTo(map);
+}
 
+async function searchPlace(q) {
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
-    const r = await fetch(url, { headers: { "Accept": "application/json" } });
-    const data = await r.json();
-    if (!Array.isArray(data) || data.length === 0) return;
-
-    const best = data[0];
-    state.plans.pin = { lat: Number(best.lat), lng: Number(best.lon), label: best.display_name };
-    placeMarker();
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
+    const j = await r.json();
+    if (!Array.isArray(j) || j.length === 0) {
+      alert("Not found");
+      return;
+    }
+    const p = j[0];
+    const lat = toNum(p.lat);
+    const lng = toNum(p.lon);
+    state.plans.pin = { lat, lng, label: p.display_name || q };
     scheduleSave();
-  } catch {}
+    renderPlans();
+    initMap();
+    map.setView([lat, lng], 14);
+    setMarker(lat, lng);
+  } catch {
+    alert("Search failed");
+  }
 }
 
 function renderPlans() {
   const list = $("#plansList");
-  if (!list) return;
-
   list.innerHTML = "";
-  const items = state.plans.items.slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+
+  const items = [...state.plans.items].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   for (const p of items) {
     const div = document.createElement("div");
     div.className = "listItem";
     div.innerHTML = `
-      <div>
-        <div style="font-weight:900">${escapeHtml(p.name)} <span class="chip" style="margin-left:8px">${escapeHtml(p.category)}</span></div>
-        <div class="meta">${escapeHtml(p.date || "")} ${escapeHtml(p.time || "")} • ${escapeHtml(p.desc || "")}</div>
-        ${p.pin ? `<div class="meta">📍 ${p.pin.lat.toFixed(4)}, ${p.pin.lng.toFixed(4)}</div>` : ""}
+      <div style="flex:1; min-width:0">
+        <div style="font-weight:900">${escapeHtml(p.name || "(Plan)")}</div>
+        <div class="meta">${escapeHtml(p.category || "")} • ${escapeHtml(p.date || "")} ${escapeHtml(p.time || "")}</div>
+        <div class="meta">${escapeHtml(p.desc || "")}</div>
+        ${p.pinLabel ? `<div class="meta">📍 ${escapeHtml(p.pinLabel)}</div>` : ""}
       </div>
       <div class="actions">
-        <button class="btn ghost smallBtn" data-action="pinPlan" data-id="${p.id}">View Pin</button>
-        <button class="smallBtn danger" data-action="delPlan" data-id="${p.id}">Delete</button>
+        <button class="btn danger smallBtn" data-action="delPlan" data-id="${p.id}">Delete</button>
       </div>
     `;
     list.appendChild(div);
+  }
+}
+
+/* ========= Sup' Sain ========= */
+let ssLoading = false;
+
+function ssSetLoading(on) {
+  ssLoading = !!on;
+  $$('[data-action="ssRefresh"]').forEach(b => {
+    b.disabled = ssLoading;
+    b.textContent = ssLoading ? "Refreshing..." : "Refresh";
+  });
+}
+
+function ssRenderList(containerId, items, kind) {
+  const el = $("#" + containerId);
+  if (!el) return;
+
+  el.innerHTML = "";
+
+  if (!items || items.length === 0) {
+    const d = document.createElement("div");
+    d.className = "listItem";
+    d.innerHTML = `<div class="meta">No data yet — tap Refresh.</div>`;
+    el.appendChild(d);
+    return;
+  }
+
+  if (kind === "news") {
+    items.forEach((n, i) => {
+      const div = document.createElement("div");
+      div.className = "listItem";
+      div.innerHTML = `
+        <div>
+          <div style="font-weight:900">${i + 1}. ${escapeHtml(n.title || "")}</div>
+          <div class="meta">${escapeHtml(n.source || "")}</div>
+        </div>
+        <div class="actions">
+          ${n.url ? `<a class="btn ghost smallBtn" href="${escapeHtml(n.url)}" target="_blank" rel="noopener">Open</a>` : ""}
+        </div>
+      `;
+      el.appendChild(div);
+    });
+    return;
+  }
+
+  if (kind === "quiz") {
+    items.forEach((q, i) => {
+      const div = document.createElement("div");
+      div.className = "listItem";
+      const ans = q.answer ? `<div class="meta" data-ss-ans="${i}" hidden><b>Answer:</b> ${escapeHtml(q.answer)}</div>` : "";
+      div.innerHTML = `
+        <div style="flex:1; min-width:0">
+          <div style="font-weight:900">${i + 1}. ${escapeHtml(q.question || "")}</div>
+          ${q.hint ? `<div class="meta">${escapeHtml(q.hint)}</div>` : ""}
+          ${ans}
+        </div>
+        <div class="actions">
+          <button class="btn ghost smallBtn" data-action="ssToggleAnswer" data-idx="${i}">Show</button>
+        </div>
+      `;
+      el.appendChild(div);
+    });
+    return;
+  }
+
+  items.forEach((x, i) => {
+    const div = document.createElement("div");
+    div.className = "listItem";
+    div.innerHTML = `
+      <div>
+        <div style="font-weight:900">${i + 1}. ${escapeHtml(x.text || "")}</div>
+        ${x.meta ? `<div class="meta">${escapeHtml(x.meta)}</div>` : ""}
+      </div>
+    `;
+    el.appendChild(div);
+  });
+}
+
+function renderSupSain() {
+  ssRenderList("ssNews", state.supsain.news, "news");
+  ssRenderList("ssDoy", state.supsain.doy);
+  ssRenderList("ssIslam", state.supsain.islam);
+  ssRenderList("ssQuiz", state.supsain.quiz, "quiz");
+  ssRenderList("ssInnov", state.supsain.innov, "news");
+  ssRenderList("ssWeekend", state.supsain.weekend);
+  ssRenderList("ssBiz", state.supsain.biz);
+  ssRenderList("ssJokes", state.supsain.jokes);
+
+  const emptyAll = ["news", "doy", "islam", "quiz", "innov", "weekend", "biz", "jokes"]
+    .every(k => (state.supsain[k] || []).length === 0);
+
+  if (emptyAll) ssRefresh("all");
+}
+
+async function ssRefresh(section) {
+  if (ssLoading) return;
+  ssSetLoading(true);
+
+  try {
+    const url =
+      section && section !== "all"
+        ? `/api/supsain?section=${encodeURIComponent(section)}`
+        : "/api/supsain";
+
+    const r = await fetch(url, { cache: "no-store" });
+    const data = await r.json();
+
+    if (section && section !== "all") {
+      state.supsain[section] = Array.isArray(data.items) ? data.items : [];
+    } else {
+      state.supsain.news = data.news || [];
+      state.supsain.doy = data.doy || [];
+      state.supsain.islam = data.islam || [];
+      state.supsain.quiz = data.quiz || [];
+      state.supsain.innov = data.innov || [];
+      state.supsain.weekend = data.weekend || [];
+      state.supsain.biz = data.biz || [];
+      state.supsain.jokes = data.jokes || [];
+    }
+
+    scheduleSave();
+    renderSupSain();
+  } catch (e) {
+    alert("Could not refresh right now. Check internet and try again.");
+  } finally {
+    ssSetLoading(false);
   }
 }
 
@@ -652,6 +783,22 @@ function bindEvents() {
     const el = e.target.closest("[data-action]");
     if (!el) return;
     const action = el.dataset.action;
+
+    // Sup' Sain
+    if (action === "ssRefresh") {
+      ssRefresh(el.dataset.section || "all");
+      return;
+    }
+    if (action === "ssToggleAnswer") {
+      const idx = Number(el.dataset.idx || 0);
+      const ans = document.querySelector(`[data-ss-ans="${idx}"]`);
+      if (ans) {
+        const nowHidden = !ans.hidden;
+        ans.hidden = nowHidden;
+        el.textContent = nowHidden ? "Show" : "Hide";
+      }
+      return;
+    }
 
     // overall edit
     if (action === "editOverall") {
@@ -681,30 +828,103 @@ function bindEvents() {
     }
     if (action === "applySpentToday") {
       const spent = Math.max(0, toNum($("#spentToday").value));
-      state.daily.updated = Math.max(0, toNum(state.daily.updated) - spent);
-      $("#spentToday").value = "";
+      state.daily.updated = clamp0(state.daily.updated - spent);
       scheduleSave();
       renderCurrent();
       return;
     }
     if (action === "quickResetDay") {
-      state.daily.updated = state.daily.base;
+      if (!confirm("Reset daily updated balance to base?")) return;
+      state.daily.updated = clamp0(state.daily.base);
       scheduleSave();
       renderCurrent();
       return;
     }
 
-    // expenses
     if (action === "addExpense") {
-      addExpense("Expense", $("#expName").value.trim(), $("#expNotes").value.trim(), $("#expAmount").value);
-      $("#expName").value = ""; $("#expNotes").value = ""; $("#expAmount").value = "";
+      const name = ($("#expName").value || "").trim();
+      const notes = ($("#expNotes").value || "").trim();
+      const amount = clamp0($("#expAmount").value);
+      if (!name || amount <= 0) return alert("Enter name and amount");
+
+      state.expenses.unshift({
+        id: uid(),
+        kind: "Expense",
+        name,
+        notes,
+        amount,
+        occurred: false,
+        createdAt: Date.now()
+      });
+
+      $("#expName").value = "";
+      $("#expNotes").value = "";
+      $("#expAmount").value = "";
+      scheduleSave();
+      renderCurrent();
       return;
     }
+
     if (action === "addService") {
-      addExpense("Service", $("#svcName").value, $("#svcNotes").value.trim(), $("#svcAmount").value);
-      $("#svcNotes").value = ""; $("#svcAmount").value = "";
+      const name = ($("#svcName").value || "").trim();
+      const notes = ($("#svcNotes").value || "").trim();
+      const amount = clamp0($("#svcAmount").value);
+      if (!name || amount <= 0) return alert("Enter amount");
+
+      state.expenses.unshift({
+        id: uid(),
+        kind: "Service",
+        name,
+        notes,
+        amount,
+        occurred: false,
+        createdAt: Date.now()
+      });
+
+      $("#svcNotes").value = "";
+      $("#svcAmount").value = "";
+      scheduleSave();
+      renderCurrent();
       return;
     }
+
+    if (action === "toggleOccurred") {
+      const id = el.dataset.id || el.closest("input")?.dataset.id;
+      const item = state.expenses.find(x => x.id === id);
+      if (!item) return;
+      item.occurred = !item.occurred;
+      scheduleSave();
+      renderCurrent();
+      return;
+    }
+
+    if (action === "editExpense") {
+      const id = el.dataset.id;
+      const item = state.expenses.find(x => x.id === id);
+      if (!item) return;
+      const newName = prompt("Name:", item.name);
+      if (newName === null) return;
+      const newNotes = prompt("Notes:", item.notes || "");
+      if (newNotes === null) return;
+      const newAmt = prompt("Amount:", String(item.amount));
+      if (newAmt === null) return;
+      item.name = (newName || "").trim();
+      item.notes = (newNotes || "").trim();
+      item.amount = clamp0(newAmt);
+      scheduleSave();
+      renderCurrent();
+      return;
+    }
+
+    if (action === "delExpense") {
+      const id = el.dataset.id;
+      if (!confirm("Delete this item?")) return;
+      state.expenses = state.expenses.filter(x => x.id !== id);
+      scheduleSave();
+      renderCurrent();
+      return;
+    }
+
     if (action === "clearExpenses") {
       if (!confirm("Clear all expenses?")) return;
       state.expenses = [];
@@ -713,42 +933,22 @@ function bindEvents() {
       return;
     }
 
-    if (action === "toggleOccur") {
-      const id = el.dataset.id;
-      const ex = state.expenses.find(x => x.id === id);
-      if (!ex) return;
-      ex.occurred = !!el.checked;
-      scheduleSave();
-      renderCurrent();
-      return;
-    }
-
-    if (action === "updateExp") {
-      // already live via inputs; just re-render for totals
-      scheduleSave();
-      renderCurrent();
-      return;
-    }
-
-    if (action === "delExp") {
-      const id = el.dataset.id;
-      state.expenses = state.expenses.filter(x => x.id !== id);
-      scheduleSave();
-      renderCurrent();
-      return;
-    }
-
     // notes
     if (action === "saveNote") {
-      const title = $("#noteTitle").value.trim() || "Untitled";
-      const body = $("#noteBody").value.trim();
+      const title = ($("#noteTitle").value || "").trim();
+      const body = ($("#noteBody").value || "").trim();
 
-      const now = new Date().toISOString();
+      if (!title && !body) return alert("Write something first");
+
       if (editingNoteId) {
         const n = state.notes.find(x => x.id === editingNoteId);
-        if (n) { n.title = title; n.body = body; n.updatedAt = now; }
+        if (n) {
+          n.title = title;
+          n.body = body;
+          n.updatedAt = Date.now();
+        }
       } else {
-        state.notes.unshift({ id: uid(), title, body, updatedAt: now });
+        state.notes.unshift({ id: uid(), title, body, updatedAt: Date.now() });
       }
 
       editingNoteId = null;
@@ -773,45 +973,56 @@ function bindEvents() {
       editingNoteId = id;
       $("#noteTitle").value = n.title || "";
       $("#noteBody").value = n.body || "";
-      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
     if (action === "delNote") {
       const id = el.dataset.id;
+      if (!confirm("Delete this note?")) return;
       state.notes = state.notes.filter(x => x.id !== id);
-      if (editingNoteId === id) editingNoteId = null;
       scheduleSave();
       renderNotesDocs();
       return;
     }
 
-    // docs
     if (action === "previewDoc") {
-      previewDoc(el.dataset.id);
+      const id = el.dataset.id;
+      const d = state.docs.find(x => x.id === id);
+      if (!d) return;
+      const box = $("#docPreview");
+      if ((d.type || "").includes("pdf")) {
+        box.innerHTML = `<iframe src="${escapeHtml(d.dataUrl)}" style="width:100%; height:420px; border:0; border-radius:14px;"></iframe>`;
+      } else if ((d.type || "").startsWith("image/")) {
+        box.innerHTML = `<img src="${escapeHtml(d.dataUrl)}" alt="preview" style="width:100%; height:auto; border-radius:14px;" />`;
+      } else {
+        box.textContent = "Preview not available.";
+      }
       return;
     }
+
     if (action === "delDoc") {
       const id = el.dataset.id;
+      if (!confirm("Delete this file?")) return;
       state.docs = state.docs.filter(x => x.id !== id);
-      if (selectedDocId === id) selectedDocId = null;
       scheduleSave();
-      renderDocsList();
+      renderNotesDocs();
       $("#docPreview").textContent = "Select a file to preview.";
       return;
     }
 
     // water
     if (action === "setWaterTarget") {
-      const litres = Math.max(0, Number($("#waterTargetL").value || 0));
-      state.water.targetMl = Math.max(250, Math.round(litres * 1000));
+      const litres = Math.max(0, toNum($("#waterTargetL").value));
+      state.water.targetMl = Math.round(litres * 1000);
       scheduleSave();
       renderWater();
       return;
     }
+
     if (action === "resetWaterToday") {
-      state.water.lastDate = todayKey();
+      if (!confirm("Reset today water?")) return;
       state.water.glasses = 0;
+      state.water.lastDate = todayKey();
       scheduleSave();
       renderWater();
       return;
@@ -819,65 +1030,66 @@ function bindEvents() {
 
     // quotes
     if (action === "refreshQuotes") {
-      fetchQuotes();
+      refreshQuotes();
+      return;
+    }
+
+    if (action === "saveReflection") {
+      state.quotes.reflection = $("#quoteReflection").value || "";
+      scheduleSave();
+      alert("Saved ✅");
       return;
     }
 
     // focus
     if (action === "startFocus") {
-      startFocus($("#focusMinutes").value);
+      const mins = toNum($("#focusMinutes").value);
+      if (mins <= 0) return alert("Enter minutes");
+      startFocus(mins);
       return;
     }
+
     if (action === "stopFocus") {
       stopFocus(false);
       return;
     }
+
     if (action === "toggleOverlay") {
       state.focus.overlay = !state.focus.overlay;
       scheduleSave();
       renderFocus();
       return;
     }
-    if (action === "hideOverlay") {
-      state.focus.overlay = false;
-      scheduleSave();
-      renderFocus();
-      return;
-    }
-    if (action === "goFullscreen") {
-      enterFullscreen();
-      return;
-    }
 
     // plans
-    if (action === "searchMap") {
-      searchMapPlace($("#mapSearch").value);
+    if (action === "searchPlace") {
+      const q = ($("#mapSearch").value || "").trim();
+      if (!q) return;
+      searchPlace(q);
       return;
     }
-    if (action === "clearPin") {
-      state.plans.pin = null;
-      placeMarker();
-      scheduleSave();
-      return;
-    }
-    if (action === "savePlan") {
-      const category = $("#planCategory").value;
-      const name = $("#planName").value.trim();
-      const desc = $("#planDesc").value.trim();
-      const date = $("#planDate").value;
-      const time = $("#planTime").value;
 
-      if (!name) return alert("Please enter plan name");
+    if (action === "savePlan") {
+      const name = ($("#planName").value || "").trim();
+      const category = $("#planCat").value || "";
+      const date = $("#planDate").value || "";
+      const time = $("#planTime").value || "";
+      const desc = ($("#planDesc").value || "").trim();
+
+      if (!name) return alert("Name required");
+
+      const pinLabel = state.plans.pin?.label || (state.plans.pin ? "Pinned" : "");
 
       state.plans.items.unshift({
         id: uid(),
-        category,
         name,
-        desc,
+        category,
         date,
         time,
-        pin: state.plans.pin ? { ...state.plans.pin } : null,
-        createdAt: new Date().toISOString()
+        desc,
+        pin: state.plans.pin || null,
+        pinLabel,
+        createdAt: Date.now()
       });
 
       $("#planName").value = "";
@@ -886,37 +1098,38 @@ function bindEvents() {
       renderPlans();
       return;
     }
+
+    if (action === "clearPlans") {
+      if (!confirm("Clear all plans?")) return;
+      state.plans.items = [];
+      scheduleSave();
+      renderPlans();
+      return;
+    }
+
     if (action === "delPlan") {
       const id = el.dataset.id;
+      if (!confirm("Delete this plan?")) return;
       state.plans.items = state.plans.items.filter(x => x.id !== id);
       scheduleSave();
       renderPlans();
       return;
     }
-    if (action === "pinPlan") {
-      const id = el.dataset.id;
-      const p = state.plans.items.find(x => x.id === id);
-      if (!p || !p.pin) return;
-      state.plans.pin = { ...p.pin };
-      placeMarker();
-      setTab("plans");
-      return;
-    }
   });
 
-  // inputs: current balance/savings live
+  // inputs
   $("#curBalance").addEventListener("input", () => {
-    state.current.balance = Math.max(0, toNum($("#curBalance").value));
-    scheduleSave();
-    renderCurrent();
-  });
-  $("#curSavings").addEventListener("input", () => {
-    state.current.savings = Math.max(0, toNum($("#curSavings").value));
+    state.current.balance = clamp0($("#curBalance").value);
     scheduleSave();
     renderCurrent();
   });
 
-  // week plan inputs
+  $("#curSavings").addEventListener("input", () => {
+    state.current.savings = clamp0($("#curSavings").value);
+    scheduleSave();
+    renderCurrent();
+  });
+
   $$(".weekInput").forEach(inp => {
     inp.addEventListener("input", () => {
       const w = inp.dataset.week;
@@ -925,86 +1138,67 @@ function bindEvents() {
     });
   });
 
-  // note search re-render
   $("#noteSearch").addEventListener("input", () => renderNotesList());
 
-  // reflection
-  $("#quoteReflection").addEventListener("input", () => {
-    state.quotes.reflection = $("#quoteReflection").value;
-    scheduleSave();
-  });
-
-  // docs input
   $("#docInput").addEventListener("change", async (e) => {
-    await addDocsFromInput(e.target.files);
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    for (const f of files) {
+      await addDocFile(f);
+    }
+
     e.target.value = "";
+    scheduleSave();
+    renderDocsList();
   });
 }
 
-/* live edit expense inputs */
-document.addEventListener("input", (e) => {
-  const el = e.target;
-  if (!el.dataset || el.dataset.action !== "editExp") return;
+async function addDocFile(file) {
+  // convert to dataUrl for preview/offline
+  const dataUrl = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
 
-  const id = el.dataset.id;
-  const field = el.dataset.field;
-  const ex = state.expenses.find(x => x.id === id);
-  if (!ex) return;
-
-  if (field === "amount") ex.amount = Math.max(0, toNum(el.value));
-  else ex[field] = el.value;
-
-  scheduleSave();
-  // don't rerender every keypress for speed; totals update on update button
-});
-
-/* ========= Fullscreen ========= */
-function enterFullscreen() {
-  const el = document.documentElement;
-  if (document.fullscreenElement) return;
-  el.requestFullscreen?.();
+  state.docs.unshift({
+    id: uid(),
+    name: file.name,
+    type: file.type || "application/octet-stream",
+    dataUrl,
+    createdAt: Date.now()
+  });
 }
 
-/* ========= Boot ========= */
-async function boot() {
-  bindEvents();
-
+/* ========= Init ========= */
+async function init() {
   await detectRemote();
   await loadState();
 
-  // ensure defaults exist
-  state.water = state.water || { targetMl: 3000, glasses: 0, mlPerGlass: 250, lastDate: null };
-  state.quotes = state.quotes || { items: [], reflection: "" };
-  state.focus = state.focus || { running: false, endAt: null, overlay: false };
-  state.plans = state.plans || { items: [], pin: null };
-  state.docs = state.docs || [];
-  state.notes = state.notes || [];
-  state.expenses = state.expenses || [];
-
-  // sync daily updated if missing
-  if (typeof state.daily.updated !== "number") state.daily.updated = state.daily.base;
-
-  // initial render
+  // initial renders
   renderOverall();
   renderCurrent();
   renderNotesDocs();
   renderWater();
+  renderQuotes();
+  renderFocus();
   renderPlans();
 
-  // load quotes live once (if empty)
-  if (!state.quotes.items || state.quotes.items.length === 0) await fetchQuotes();
-  else renderQuotes();
+  bindEvents();
 
-  // focus render
-  renderFocus();
+  // default tab
+  setTab("overall");
 
-  // register SW
-  if ("serviceWorker" in navigator) {
-    try { await navigator.serviceWorker.register("./sw.js"); } catch {}
+  // if focus running, resume timer
+  if (state.focus.running && state.focus.endAt) {
+    clearInterval(focusTimer);
+    focusTimer = setInterval(updateFocusCountdown, 500);
   }
 
-  // open overall
-  setTab("overall");
+  // auto refresh water date
+  ensureWaterDate();
 }
 
-boot();
+init();
