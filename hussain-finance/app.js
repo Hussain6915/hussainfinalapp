@@ -315,9 +315,11 @@ function renderCurrent() {
   $("#dailyUpdated").textContent = fmt(state.daily.updated);
   $("#workDaysRemain").textContent = String(workingDaysRemaining());
 
-  const daily = toNum(state.current.daily);
-const wd = workingDaysRemaining();
-$("#perDay").textContent = fmt(wd ? Math.floor(daily / wd) : 0);
+  const wd = workingDaysRemaining();
+const daily = Number(state.current && state.current.daily) || 0;
+
+const el = $("#perDay");
+if (el) el.textContent = fmt(wd ? Math.floor(daily / wd) : 0);
 
   const weekly = Math.max(0, personal - toNum(state.daily.updated));
   $("#weeklyBalance").textContent = fmt(weekly);
@@ -1176,6 +1178,7 @@ async function init() {
 }
 
 init();
+
 
 
 
