@@ -708,10 +708,12 @@ async function ssRefresh(section) {
   const timeout = setTimeout(() => controller.abort(), 8000);
 
   try {
-    const url =
-      section && section !== "all"
-        ? `/api/supsain?section=${encodeURIComponent(section)}`
-        : "/api/supsain";
+    const seed = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+const url =
+  section && section !== "all"
+    ? `/api/supsain?section=${encodeURIComponent(section)}&seed=${encodeURIComponent(seed)}`
+    : `/api/supsain?seed=${encodeURIComponent(seed)}`;
 
     const r = await fetch(url, {
       cache: "no-store",
@@ -1161,4 +1163,5 @@ async function init() {
 }
 
 init();
+
 
